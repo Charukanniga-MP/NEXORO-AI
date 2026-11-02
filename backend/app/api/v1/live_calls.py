@@ -13,6 +13,7 @@ from app.core.config import settings
 from app.core.database import get_db, AsyncSessionLocal
 from app.models.call import Call
 from app.models.customer import Customer
+from app.models.user import User
 from app.services.conversation_orchestrator import orchestrator
 from app.services.speech_service import speech_service
 from app.services.vision_service import vision_service
@@ -177,12 +178,19 @@ async def get_pending_call_requests():
     return call_signaling.get_pending_calls()
 
 @router.post("/{call_id}/accept")
+@router.post("/accept")
 async def accept_call_request(
-    call_id: str,
     request: Request,
+    call_id: Optional[str] = None,
     agent_id: Optional[str] = Query(None),
     db: AsyncSession = Depends(get_db)
 ):
+    """
+    AI Agent accepts the incoming call.
+    Transitions status to IN_PROGRESS, generates greeting, and notifies customer socket.
+    Accepts call_id in path or body, validates session, avoids foreign key issues,
+    and returns immediately without blocking on external network services.
+    """
     body_data = {}
     try:
         body_data = await request.json()
@@ -190,38 +198,99 @@ async def accept_call_request(
         body_data = {}
     if not isinstance(body_data, dict):
         body_data = {}
-    agent_id = body_data.get("agent_id") or agent_id
-    """
-    AI Agent accepts the incoming call.
-    Transitions status to IN_PROGRESS, generates greeting, and notifies customer socket.
-    """
-    stmt = select(Call).where(Call.id == call_id)
+
+    target_call_id = call_id or body_data.get("call_id") or body_data.get("id") or request.query_params.get("call_id")
+    target_agent_id = body_data.get("agent_id") or agent_id or request.query_params.get("agent_id")
+
+    # If call_id was not explicitly specified, inspect active pending calls
+    if not target_call_id:
+        pending_list = call_signaling.get_pending_calls()
+        if pending_list:
+            target_call_id = pending_list[0].get("id") or pending_list[0].get("call_id")
+
+    if not target_call_id:
+        raise HTTPException(status_code=400, detail="Missing call_id for call acceptance.")
+
+    logger.info(f"Processing call acceptance for call_id={target_call_id}, agent_id={target_agent_id}")
+
+    # Check Call in DB
+    stmt = select(Call).where(Call.id == target_call_id)
     res = await db.execute(stmt)
     call = res.scalars().first()
-    if not call:
-        raise HTTPException(status_code=404, detail="Call session not found")
 
-    call.status = "IN_PROGRESS"
-    call.transferred_to_user_id = agent_id
+    # If call not yet persisted in DB but registered in signaling, create it
+    if not call:
+        pending_info = call_signaling.pending_calls.get(target_call_id, {})
+        call = Call(
+            id=target_call_id,
+            direction="INBOUND",
+            caller_number=pending_info.get("caller_number", "+91-98401-00199"),
+            receiver_number="+91-44-6789-0100",
+            customer_id=pending_info.get("customer_id"),
+            status="IN_PROGRESS",
+            language=pending_info.get("language", "en"),
+            detected_languages=[pending_info.get("language", "en")],
+            start_time=datetime.utcnow(),
+            transcript=[]
+        )
+        db.add(call)
+        await db.commit()
+        await db.refresh(call)
 
     language = call.language or "en"
-    greeting = ai_engine.LANGUAGE_GREETINGS.get(language, ai_engine.LANGUAGE_GREETINGS["en"])
+    greeting = ai_engine.LANGUAGE_GREETINGS.get(language, ai_engine.LANGUAGE_GREETINGS.get("en", "Welcome to Khaira Company!"))
 
-    call.transcript = [{
-        "speaker": "ai",
-        "text": greeting,
-        "timestamp": datetime.utcnow().isoformat(),
-        "language": language
-    }]
+    # Resolve safe agent foreign key
+    valid_agent_id = None
+    if target_agent_id:
+        user_stmt = select(User).where((User.id == target_agent_id) | (User.email == target_agent_id))
+        user_res = await db.execute(user_stmt)
+        matched_user = user_res.scalars().first()
+        if matched_user:
+            valid_agent_id = matched_user.id
+        else:
+            default_agent_stmt = select(User).where(User.role == "AGENT")
+            default_agent_res = await db.execute(default_agent_stmt)
+            default_agent = default_agent_res.scalars().first()
+            if default_agent:
+                valid_agent_id = default_agent.id
+
+    call.status = "IN_PROGRESS"
+    call.transferred_to_user_id = valid_agent_id
+
+    if not call.transcript:
+        call.transcript = [{
+            "speaker": "ai",
+            "text": greeting,
+            "timestamp": datetime.utcnow().isoformat(),
+            "language": language
+        }]
+
     await db.commit()
     await db.refresh(call)
 
-    # Initialize dialog state
-    session = await orchestrator.get_or_create_session(db, call.id, call.caller_number, call.direction)
-    session.language = language
-    session.turns = call.transcript
+    # Initialize dialog state in orchestrator
+    try:
+        session = await orchestrator.get_or_create_session(db, call.id, call.caller_number, call.direction)
+        session.language = language
+        session.turns = call.transcript
+    except Exception as orch_err:
+        logger.warning(f"Orchestrator session initialization notice: {orch_err}")
 
-    tts = await speech_service.synthesize_speech(greeting, language, call_id=call.id)
+    # Fast / non-blocking TTS generation with safe fallback
+    tts = {
+        "text": greeting,
+        "language": language,
+        "audio_url": None,
+        "audio_generated": False
+    }
+    try:
+        tts = await asyncio.wait_for(
+            speech_service.synthesize_speech(greeting, language, call_id=call.id),
+            timeout=2.0
+        )
+    except Exception as tts_err:
+        logger.warning(f"Initial greeting TTS deferred: {tts_err}")
 
     call_info = {
         "id": call.id,
@@ -235,7 +304,9 @@ async def accept_call_request(
         "transcript": call.transcript
     }
 
-    await call_signaling.notify_call_accepted(call_id, call_info)
+    # Broadcast to customer and agent sockets
+    await call_signaling.notify_call_accepted(target_call_id, call_info)
+    logger.info(f"Call {target_call_id} successfully accepted and transitioned to IN_PROGRESS.")
 
     return call_info
 

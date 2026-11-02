@@ -5,7 +5,8 @@ const RTC_CONFIG: RTCConfiguration = {
   iceServers: [
     { urls: 'stun:stun.l.google.com:19302' },
     { urls: 'stun:stun1.l.google.com:19302' },
-    { urls: 'stun:stun2.l.google.com:19302' }
+    { urls: 'stun:stun2.l.google.com:19302' },
+    { urls: 'stun:stun.cloudflare.com:3478' }
   ]
 };
 
@@ -15,6 +16,8 @@ export class WebRTCService {
   private remoteAudio: HTMLAudioElement | null = null;
   private callId: string | null = null;
   private sendSignalCallback: ((data: any) => void) | null = null;
+  private onConnectionStateCallback: ((state: string) => void) | null = null;
+  private pendingCandidates: RTCIceCandidateInit[] = [];
 
   constructor() {
     if (typeof window !== 'undefined') {
@@ -33,16 +36,21 @@ export class WebRTCService {
             autoGainControl: true
           }
         });
+        console.log('[WebRTC] Local microphone stream acquired successfully.');
         return this.localStream;
       }
     } catch (err) {
-      console.warn('Microphone permission request skipped or rejected:', err);
+      console.warn('[WebRTC] Microphone permission request deferred or denied:', err);
     }
     return null;
   }
 
   getLocalStream(): MediaStream | null {
     return this.localStream;
+  }
+
+  setConnectionStateCallback(cb: (state: string) => void) {
+    this.onConnectionStateCallback = cb;
   }
 
   async initializeConnection(
@@ -54,11 +62,12 @@ export class WebRTCService {
     this.close();
     this.callId = callId;
     this.sendSignalCallback = sendSignal;
+    this.pendingCandidates = [];
 
     try {
       this.pc = new RTCPeerConnection(RTC_CONFIG);
 
-      // Attach local stream tracks if mic was acquired
+      // 1. Acquire local microphone stream if not already active
       if (!this.localStream) {
         await this.startLocalAudio();
       }
@@ -70,11 +79,11 @@ export class WebRTCService {
           }
         });
       } else {
-        // Ensure bidirectional audio transceiver even if mic is muted
+        // Ensure bidirectional audio transceiver even if mic is unattached initially
         this.pc.addTransceiver('audio', { direction: 'sendrecv' });
       }
 
-      // Handle ICE Candidates
+      // 2. Handle ICE Candidates
       this.pc.onicecandidate = (event) => {
         if (event.candidate && this.sendSignalCallback && this.callId) {
           this.sendSignalCallback({
@@ -85,13 +94,14 @@ export class WebRTCService {
         }
       };
 
-      // Handle Remote Audio Track
+      // 3. Handle Remote Audio Track
       this.pc.ontrack = (event) => {
         const remoteStream = event.streams[0];
+        console.log('[WebRTC] Remote audio track received from peer.');
         if (this.remoteAudio && remoteStream) {
           this.remoteAudio.srcObject = remoteStream;
-          this.remoteAudio.play().catch(() => {
-            console.log('WebRTC audio autoplay deferred until user interaction');
+          this.remoteAudio.play().catch((playErr) => {
+            console.log('[WebRTC] Audio autoplay policy deferred:', playErr);
           });
         }
         if (onRemoteTrack && remoteStream) {
@@ -99,11 +109,16 @@ export class WebRTCService {
         }
       };
 
+      // 4. Monitor Connection State
       this.pc.onconnectionstatechange = () => {
-        console.log(`[WebRTC] Connection State for Call ${callId}:`, this.pc?.connectionState);
+        const state = this.pc?.connectionState || 'closed';
+        console.log(`[WebRTC] Connection State for Call ${callId}:`, state);
+        if (this.onConnectionStateCallback) {
+          this.onConnectionStateCallback(state);
+        }
       };
 
-      // If Initiator (Caller / Customer), generate and send Offer
+      // 5. If Initiator (Caller / Customer), generate and send Offer
       if (isInitiator) {
         const offer = await this.pc.createOffer({
           offerToReceiveAudio: true
@@ -117,9 +132,10 @@ export class WebRTCService {
             sdp: offer
           });
         }
+        console.log('[WebRTC] SDP Offer created and sent.');
       }
     } catch (err) {
-      console.error('[WebRTC] Initialization error:', err);
+      console.error('[WebRTC] PeerConnection initialization error:', err);
     }
   }
 
@@ -128,7 +144,18 @@ export class WebRTCService {
 
     try {
       if (data.event === 'webrtc_offer' && data.sdp) {
+        if (this.pc.signalingState !== 'stable' && this.pc.signalingState !== 'have-local-offer') {
+          console.warn('[WebRTC] Offer ignored due to signalingState:', this.pc.signalingState);
+          return;
+        }
         await this.pc.setRemoteDescription(new RTCSessionDescription(data.sdp));
+        
+        // Flush any queued ICE candidates
+        while (this.pendingCandidates.length > 0) {
+          const cand = this.pendingCandidates.shift();
+          if (cand) await this.pc.addIceCandidate(new RTCIceCandidate(cand));
+        }
+
         const answer = await this.pc.createAnswer();
         await this.pc.setLocalDescription(answer);
 
@@ -139,13 +166,28 @@ export class WebRTCService {
             sdp: answer
           });
         }
+        console.log('[WebRTC] SDP Answer created and sent to initiator.');
+
       } else if (data.event === 'webrtc_answer' && data.sdp) {
-        if (this.pc.signalingState !== 'stable') {
+        if (this.pc.signalingState === 'have-local-offer') {
           await this.pc.setRemoteDescription(new RTCSessionDescription(data.sdp));
+          console.log('[WebRTC] SDP Answer applied successfully.');
+
+          // Flush any queued ICE candidates
+          while (this.pendingCandidates.length > 0) {
+            const cand = this.pendingCandidates.shift();
+            if (cand) await this.pc.addIceCandidate(new RTCIceCandidate(cand));
+          }
         }
+
       } else if (data.event === 'webrtc_ice' && data.candidate) {
         try {
-          await this.pc.addIceCandidate(new RTCIceCandidate(data.candidate));
+          if (this.pc.remoteDescription && this.pc.remoteDescription.type) {
+            await this.pc.addIceCandidate(new RTCIceCandidate(data.candidate));
+          } else {
+            // Buffer candidate until remote description is settled
+            this.pendingCandidates.push(data.candidate);
+          }
         } catch (e) {
           console.warn('[WebRTC] Error adding ICE candidate:', e);
         }
@@ -170,6 +212,7 @@ export class WebRTCService {
   }
 
   close(): void {
+    this.pendingCandidates = [];
     if (this.localStream) {
       this.localStream.getTracks().forEach((track) => track.stop());
       this.localStream = null;

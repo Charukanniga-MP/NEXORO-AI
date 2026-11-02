@@ -191,7 +191,8 @@ export const CustomerDashboardView: React.FC = () => {
 
       // 3. Connect real-time WebSocket for this call session
       const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-      const wsUrl = `${protocol}//${window.location.host}/api/v1/live-calls/ws/${newCallId}`;
+      const host = window.location.port === '5173' ? '127.0.0.1:8000' : window.location.host;
+      const wsUrl = `${protocol}//${host}/api/v1/live-calls/ws/${newCallId}`;
       const ws = new WebSocket(wsUrl);
       callSocketRef.current = ws;
 
@@ -215,11 +216,15 @@ export const CustomerDashboardView: React.FC = () => {
             }
 
             // Initialize WebRTC Peer-to-Peer Two-Way Audio Connection (Initiator)
-            await webrtcService.initializeConnection(newCallId, true, (signalMsg) => {
-              if (ws.readyState === WebSocket.OPEN) {
-                ws.send(JSON.stringify(signalMsg));
-              }
-            });
+            try {
+              await webrtcService.initializeConnection(newCallId, true, (signalMsg) => {
+                if (ws.readyState === WebSocket.OPEN) {
+                  ws.send(JSON.stringify(signalMsg));
+                }
+              });
+            } catch (rtcErr) {
+              console.warn('[Customer WebRTC] Non-fatal initialization warning:', rtcErr);
+            }
 
             // Start continuous Speech Recognition in chosen language
             initSpeechRecognition(newCallId);

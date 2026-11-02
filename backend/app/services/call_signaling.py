@@ -66,7 +66,9 @@ class CallSignalingManager:
     async def relay_webrtc_signal(self, call_id: str, sender_ws: WebSocket, message: Dict[str, Any]):
         """
         Relays WebRTC SDP offer, SDP answer, and ICE candidates between Customer and Agent.
+        Avoids duplicate delivery to agents already subscribed via call sockets.
         """
+        delivered = set()
         # 1. Relay to other call sockets attached to this call_id
         if call_id in self.call_sockets:
             dead_sockets = set()
@@ -74,16 +76,18 @@ class CallSignalingManager:
                 if ws != sender_ws:
                     try:
                         await ws.send_json(message)
+                        delivered.add(ws)
                     except Exception as e:
                         dead_sockets.add(ws)
             self.call_sockets[call_id] -= dead_sockets
 
-        # 2. Also relay to agent console sockets
+        # 2. Relay to agent console sockets only if not already delivered
         dead_agents = set()
         for ws in list(self.agent_sockets):
-            if ws != sender_ws:
+            if ws != sender_ws and ws not in delivered:
                 try:
                     await ws.send_json(message)
+                    delivered.add(ws)
                 except Exception as e:
                     dead_agents.add(ws)
         self.agent_sockets -= dead_agents

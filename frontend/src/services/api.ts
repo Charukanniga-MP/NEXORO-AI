@@ -10,9 +10,13 @@ export const apiClient = axios.create({
   },
 });
 
-// Auto-attach JWT token (Admin or Customer)
+// Auto-attach JWT token (Admin or Customer), checking tab-isolated sessionStorage first
 apiClient.interceptors.request.use((config) => {
-  const token = localStorage.getItem('nexora_token') || localStorage.getItem('nexora_customer_token');
+  const token =
+    sessionStorage.getItem('nexora_token') ||
+    sessionStorage.getItem('nexora_customer_token') ||
+    localStorage.getItem('nexora_token') ||
+    localStorage.getItem('nexora_customer_token');
   if (token && config.headers) {
     config.headers.Authorization = `Bearer ${token}`;
   }
@@ -434,7 +438,7 @@ export const api = {
   requestCall: (params?: { caller_number?: string; caller_name?: string; language?: string; customer_id?: string }) =>
     apiClient.post('/live-calls/request-call', null, { params }),
   acceptCall: (call_id: string, agent_id?: string) =>
-    apiClient.post(`/live-calls/${call_id}/accept`, null, { params: { agent_id } }),
+    apiClient.post(`/live-calls/${call_id}/accept`, { agent_id, call_id }, { params: { agent_id, call_id } }),
   rejectCall: (call_id: string, reason?: string) =>
     apiClient.post(`/live-calls/${call_id}/reject`, null, { params: { reason } }),
   cancelCall: (call_id: string) =>

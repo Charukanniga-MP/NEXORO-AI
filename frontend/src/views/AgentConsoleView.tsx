@@ -101,7 +101,8 @@ export const AgentConsoleView: React.FC = () => {
   const initAgentWebSocket = () => {
     try {
       const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-      const wsUrl = `${protocol}//${window.location.host}/api/v1/live-calls/ws/agent-calls`;
+      const host = window.location.port === '5173' ? '127.0.0.1:8000' : window.location.host;
+      const wsUrl = `${protocol}//${host}/api/v1/live-calls/ws/agent-calls`;
       const ws = new WebSocket(wsUrl);
       agentSocketRef.current = ws;
 
@@ -111,7 +112,8 @@ export const AgentConsoleView: React.FC = () => {
           
           if (data.event === 'INCOMING_CALL') {
             setIncomingCalls((prev) => {
-              if (prev.find((c) => c.id === data.call.id)) return prev;
+              const incId = data.call.id || data.call.call_id;
+              if (prev.find((c) => (c.id || c.call_id) === incId)) return prev;
               return [...prev, data.call];
             });
             startIncomingRingtone();
@@ -123,11 +125,11 @@ export const AgentConsoleView: React.FC = () => {
             }
 
           } else if (data.event === 'CALL_ACCEPTED') {
-            setIncomingCalls((prev) => prev.filter((c) => c.id !== data.call_id));
+            setIncomingCalls((prev) => prev.filter((c) => (c.id || c.call_id) !== data.call_id));
             stopIncomingRingtone();
 
           } else if (data.event === 'CALL_REJECTED') {
-            setIncomingCalls((prev) => prev.filter((c) => c.id !== data.call_id));
+            setIncomingCalls((prev) => prev.filter((c) => (c.id || c.call_id) !== data.call_id));
             stopIncomingRingtone();
 
           } else if (data.event === 'CALL_ENDED') {
@@ -230,18 +232,34 @@ export const AgentConsoleView: React.FC = () => {
     }
   };
 
-  const handleAcceptCall = async (callId: string) => {
-    try {
-      stopIncomingRingtone();
-      const res = await api.acceptCall(callId, user?.id || 'agent');
-      setActiveCall(res.data);
-      setAgentStatus('ON_CALL');
-      setTranscript(res.data.transcript || []);
-      setIncomingCalls((prev) => prev.filter((c) => c.id !== callId));
+  const handleAcceptCall = async (callIdInput: any) => {
+    const callId = typeof callIdInput === 'string' ? callIdInput : (callIdInput?.id || callIdInput?.call_id);
+    if (!callId) {
+      console.error('No call ID provided to handleAcceptCall');
+      return;
+    }
+    stopIncomingRingtone();
 
-      // Connect to call-specific socket
+    let acceptedCallData: any = null;
+    try {
+      const res = await api.acceptCall(callId, user?.id || 'agent');
+      acceptedCallData = res.data;
+      setActiveCall(acceptedCallData);
+      setAgentStatus('ON_CALL');
+      setTranscript(acceptedCallData.transcript || []);
+      setIncomingCalls((prev) => prev.filter((c) => (c.id || c.call_id) !== callId));
+    } catch (err: any) {
+      console.error('Failed to accept call via API:', err);
+      const detail = err.response?.data?.detail || err.message || 'Failed to accept call';
+      alert(detail);
+      return;
+    }
+
+    // Connect to call-specific WebSocket and initialize WebRTC
+    try {
       const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-      const callWs = new WebSocket(`${protocol}//${window.location.host}/api/v1/live-calls/ws/${callId}`);
+      const host = window.location.port === '5173' ? '127.0.0.1:8000' : window.location.host;
+      const callWs = new WebSocket(`${protocol}//${host}/api/v1/live-calls/ws/${callId}`);
       activeCallSocketRef.current = callWs;
 
       callWs.onmessage = async (evt) => {
@@ -261,7 +279,9 @@ export const AgentConsoleView: React.FC = () => {
             setAgentStatus('AVAILABLE');
             loadConsoleData();
           }
-        } catch (e) {}
+        } catch (e) {
+          console.warn('Error in callWs message handler:', e);
+        }
       };
 
       // Initialize WebRTC as Receiver
@@ -272,17 +292,18 @@ export const AgentConsoleView: React.FC = () => {
           agentSocketRef.current.send(JSON.stringify(signalMsg));
         }
       });
-
-    } catch (err: any) {
-      alert(err.response?.data?.detail || 'Failed to accept call');
+    } catch (rtcErr: any) {
+      console.warn('WebRTC audio receiver warning (non-fatal):', rtcErr);
     }
   };
 
-  const handleRejectCall = async (callId: string) => {
+  const handleRejectCall = async (callIdInput: any) => {
+    const callId = typeof callIdInput === 'string' ? callIdInput : (callIdInput?.id || callIdInput?.call_id);
+    if (!callId) return;
     try {
       stopIncomingRingtone();
       await api.rejectCall(callId, 'Rejected by agent');
-      setIncomingCalls((prev) => prev.filter((c) => c.id !== callId));
+      setIncomingCalls((prev) => prev.filter((c) => (c.id || c.call_id) !== callId));
     } catch (err) {
       console.error('Failed to reject call', err);
     }
@@ -434,7 +455,7 @@ export const AgentConsoleView: React.FC = () => {
           <div className="space-y-3">
             {incomingCalls.map((call) => (
               <div
-                key={call.id}
+                key={call.id || call.call_id}
                 className="p-5 bg-gradient-to-r from-blue-600 via-indigo-600 to-sky-600 rounded-3xl text-white shadow-xl flex flex-col sm:flex-row items-center justify-between gap-4 ring-4 ring-blue-300 animate-pulse"
               >
                 <div className="flex items-center space-x-4">
@@ -458,14 +479,14 @@ export const AgentConsoleView: React.FC = () => {
 
                 <div className="flex items-center space-x-2 shrink-0">
                   <button
-                    onClick={() => handleAcceptCall(call.id)}
+                    onClick={() => handleAcceptCall(call.id || call.call_id)}
                     className="px-6 py-2.5 bg-emerald-500 hover:bg-emerald-600 text-white font-extrabold text-xs rounded-2xl shadow-lg transition-all flex items-center space-x-1.5 cursor-pointer transform hover:scale-105"
                   >
                     <CheckCircle2 className="w-4 h-4" />
                     <span>Accept & Connect Call</span>
                   </button>
                   <button
-                    onClick={() => handleRejectCall(call.id)}
+                    onClick={() => handleRejectCall(call.id || call.call_id)}
                     className="px-4 py-2.5 bg-rose-500/80 hover:bg-rose-600 text-white font-semibold text-xs rounded-2xl transition-all flex items-center space-x-1.5 cursor-pointer"
                   >
                     <XCircle className="w-4 h-4" />
