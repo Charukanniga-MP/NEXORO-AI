@@ -49,6 +49,11 @@ export interface CustomerProfile {
   landmark?: string;
   preferred_language: string;
   total_orders_count: number;
+  avatar_url?: string;
+  upi_id?: string;
+  wallet_balance?: number;
+  pay_later_limit?: number;
+  pay_later_available?: number;
   created_at: string;
 }
 

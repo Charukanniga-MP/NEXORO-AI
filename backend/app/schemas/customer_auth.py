@@ -48,6 +48,11 @@ class CustomerProfileResponse(BaseModel):
     landmark: Optional[str] = None
     preferred_language: str
     total_orders_count: int
+    avatar_url: Optional[str] = None
+    upi_id: Optional[str] = None
+    wallet_balance: Optional[float] = 500.0
+    pay_later_limit: Optional[float] = 25000.0
+    pay_later_available: Optional[float] = 25000.0
     created_at: str
 
 class CustomerAuthResponse(BaseModel):
@@ -65,3 +70,5 @@ class CustomerUpdateProfileRequest(BaseModel):
     pincode: Optional[str] = None
     landmark: Optional[str] = None
     preferred_language: Optional[str] = None
+    avatar_url: Optional[str] = None
+    upi_id: Optional[str] = None

@@ -1,6 +1,6 @@
 import uuid
 from datetime import datetime
-from sqlalchemy import Column, String, Text, Boolean, DateTime, Integer, ForeignKey, JSON
+from sqlalchemy import Column, String, Text, Boolean, DateTime, Integer, Numeric, ForeignKey, JSON
 from app.core.database import Base
 
 class Customer(Base):
@@ -32,6 +32,11 @@ class Customer(Base):
     consent_for_outbound = Column(Boolean, default=True)
     dnd_opt_out = Column(Boolean, default=False)
     
+    # Customer Profile Extra Features
+    avatar_url = Column(Text, nullable=True)
+    upi_id = Column(String(100), default="user@okhdfcbank", nullable=True)
+    wallet_balance = Column(Numeric(10, 2), default=500.00, nullable=True)
+
     role = Column(String(20), default="CUSTOMER")
     is_active = Column(Boolean, default=True)
     company_name = Column(String(255), nullable=True)

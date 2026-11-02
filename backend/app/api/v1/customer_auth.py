@@ -38,6 +38,7 @@ async def generate_unique_customer_code(db: AsyncSession) -> str:
         candidate = f"CUST-2026-{total_count + 1:05d}"
 
 def serialize_customer(customer: Customer) -> CustomerProfileResponse:
+    clean_p = re.sub(r'\D', '', str(customer.phone or '9840122567'))
     return CustomerProfileResponse(
         id=customer.id,
         customer_code=customer.customer_code or f"CUST-{customer.id[:8].upper()}",
@@ -52,6 +53,11 @@ def serialize_customer(customer: Customer) -> CustomerProfileResponse:
         landmark=customer.landmark,
         preferred_language=customer.preferred_language or "en",
         total_orders_count=customer.total_orders_count or 0,
+        avatar_url=getattr(customer, "avatar_url", None),
+        upi_id=getattr(customer, "upi_id", None) or f"{clean_p[-10:]}@okhdfcbank",
+        wallet_balance=float(getattr(customer, "wallet_balance", 500.0) or 500.0),
+        pay_later_limit=25000.0,
+        pay_later_available=25000.0,
         created_at=customer.created_at.isoformat() if customer.created_at else datetime.utcnow().isoformat()
     )
 
