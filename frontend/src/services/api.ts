@@ -361,7 +361,7 @@ export const api = {
 
   // Public E-Commerce Store & Catalog
   getCategories: () => apiClient.get<Category[]>('/products/categories'),
-  getPublicProducts: (params?: { search?: string; category?: string; sort_by?: string; min_price?: number; max_price?: number }) =>
+  getPublicProducts: (params?: { search?: string; category?: string; sort_by?: string; min_price?: number; max_price?: number; limit?: number; offset?: number }) =>
     apiClient.get<Product[]>('/products/public', { params }),
   getPublicProduct: (productId: string) => apiClient.get<Product>(`/products/public/${productId}`),
 

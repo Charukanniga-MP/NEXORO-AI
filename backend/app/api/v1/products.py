@@ -14,6 +14,7 @@ from app.schemas.product import (
     CategoryResponse
 )
 from app.services.marketplace_service import marketplace_service
+from app.services.live_catalog_service import live_catalog_service
 
 router = APIRouter()
 
@@ -57,7 +58,21 @@ async def list_public_products(
     """
     Public sanitized shopping catalog. Combines products from multiple supplier feeds
     into one unified, independent e-commerce organization storefront.
+    Auto-syncs from Live E-Commerce API (DummyJSON) if catalog has few items.
     """
+    # 1. Check if DB needs auto-sync from live API
+    count_stmt = select(func.count(Product.id))
+    count_res = await db.execute(count_stmt)
+    total_db_products = count_res.scalar() or 0
+    if total_db_products < 80:
+        comprehensive = live_catalog_service.get_comprehensive_catalog()
+        for item in comprehensive:
+            chk = select(Product).where(Product.sku == item["sku"])
+            chk_res = await db.execute(chk)
+            if not chk_res.scalars().first():
+                db.add(Product(**item))
+        await db.commit()
+
     query = select(Product).where(Product.is_active == True)
     
     if search:
@@ -104,6 +119,32 @@ async def get_public_product(product_id: str, db: AsyncSession = Depends(get_db)
     if not prod:
         raise HTTPException(status_code=404, detail="Product not found in organization catalog")
     return prod
+
+@router.post("/sync-live-api")
+async def sync_live_api_catalog(db: AsyncSession = Depends(get_db)):
+    """
+    Syncs live products from external public DummyJSON API and category extensions.
+    """
+    comprehensive = live_catalog_service.get_comprehensive_catalog()
+    added = 0
+    updated = 0
+    for item in comprehensive:
+        chk = select(Product).where(Product.sku == item["sku"])
+        chk_res = await db.execute(chk)
+        existing = chk_res.scalars().first()
+        if existing:
+            for k, v in item.items():
+                setattr(existing, k, v)
+            updated += 1
+        else:
+            db.add(Product(**item))
+            added += 1
+    await db.commit()
+    return {
+        "status": "SUCCESS",
+        "message": f"Successfully synchronized {added} new products and updated {updated} products across all categories from Live E-Commerce API.",
+        "total_catalog_size": added + updated
+    }
 
 # -------------------------------------------------------------------------
 # Admin & Catalog Management Endpoints

@@ -29,6 +29,9 @@ export const CustomerStoreView: React.FC = () => {
   // Data States
   const [categories, setCategories] = useState<Category[]>([]);
   const [products, setProducts] = useState<Product[]>([]);
+  const [hasMore, setHasMore] = useState<boolean>(true);
+  const [loadingMore, setLoadingMore] = useState<boolean>(false);
+  const PAGE_SIZE = 36;
   const [cart, setCart] = useState<CartData | null>(null);
   const [loading, setLoading] = useState<boolean>(true);
 
@@ -56,7 +59,7 @@ export const CustomerStoreView: React.FC = () => {
       try {
         const [catsRes, prodsRes] = await Promise.all([
           api.getCategories(),
-          api.getPublicProducts()
+          api.getPublicProducts({ limit: PAGE_SIZE, offset: 0 })
         ]);
         setCategories(catsRes.data);
         setProducts(prodsRes.data);
@@ -78,23 +81,53 @@ export const CustomerStoreView: React.FC = () => {
     fetchData();
   }, [customerToken]);
 
-  // Dynamic filter query
+  // Dynamic filter query with pagination reset
   useEffect(() => {
     const fetchFiltered = async () => {
+      setLoading(true);
       try {
         const res = await api.getPublicProducts({
           search: searchQuery || undefined,
           category: selectedCategory !== 'all' ? selectedCategory : undefined,
-          sort_by: sortBy
+          sort_by: sortBy,
+          limit: PAGE_SIZE,
+          offset: 0
         });
-        setProducts(res.data);
+        const items = res.data || [];
+        setProducts(items);
+        setHasMore(items.length >= PAGE_SIZE);
       } catch (e) {
         console.error("Filter error", e);
+      } finally {
+        setLoading(false);
       }
     };
     const debounce = setTimeout(fetchFiltered, 250);
     return () => clearTimeout(debounce);
   }, [selectedCategory, searchQuery, sortBy]);
+
+  const handleLoadMore = async () => {
+    if (loadingMore) return;
+    setLoadingMore(true);
+    try {
+      const res = await api.getPublicProducts({
+        search: searchQuery || undefined,
+        category: selectedCategory !== 'all' ? selectedCategory : undefined,
+        sort_by: sortBy,
+        limit: PAGE_SIZE,
+        offset: products.length
+      });
+      const newItems = res.data || [];
+      setProducts((prev) => [...prev, ...newItems]);
+      if (newItems.length < PAGE_SIZE) {
+        setHasMore(false);
+      }
+    } catch (e) {
+      console.error("Load more error", e);
+    } finally {
+      setLoadingMore(false);
+    }
+  };
 
   const handleAddToCart = async (product: Product) => {
     if (!customerToken) {
@@ -339,6 +372,32 @@ export const CustomerStoreView: React.FC = () => {
                     </div>
                   </div>
                 ))}
+              </div>
+            )}
+
+            {/* Unlimited Live Catalog Load More */}
+            {!loading && products.length > 0 && hasMore && (
+              <div className="flex flex-col items-center justify-center pt-10 pb-6 space-y-2">
+                <button
+                  onClick={handleLoadMore}
+                  disabled={loadingMore}
+                  className="px-8 py-3.5 bg-gradient-to-r from-blue-600 via-indigo-600 to-sky-600 hover:from-blue-700 hover:to-indigo-700 text-white font-extrabold text-sm rounded-2xl shadow-lg shadow-blue-500/25 transition-all transform hover:scale-105 cursor-pointer flex items-center space-x-2"
+                >
+                  {loadingMore ? (
+                    <>
+                      <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                      <span>Fetching Next Live Product Feed...</span>
+                    </>
+                  ) : (
+                    <>
+                      <Sparkles className="w-4 h-4" />
+                      <span>Load More Products (Unlimited Live Catalog)</span>
+                    </>
+                  )}
+                </button>
+                <p className="text-xs text-slate-500 font-medium">
+                  Showing {products.length} products • Live Multi-Marketplace API Feed Active
+                </p>
               </div>
             )}
           </div>
