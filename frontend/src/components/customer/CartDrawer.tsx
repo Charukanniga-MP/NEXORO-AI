@@ -204,6 +204,17 @@ export const CartDrawer: React.FC<CartDrawerProps> = ({
                   Apply
                 </button>
               </form>
+              <div className="mt-1.5 flex items-center space-x-1.5">
+                <span className="text-[10px] text-slate-500 font-bold">Festive Offer:</span>
+                <button
+                  type="button"
+                  onClick={() => setCouponInput('DIWALI2026')}
+                  className="px-2 py-0.5 bg-amber-100 hover:bg-amber-200 text-amber-900 border border-amber-300 rounded text-[10px] font-black cursor-pointer flex items-center space-x-1 transition-colors"
+                >
+                  <span>🪔</span>
+                  <span>DIWALI2026 (25% OFF)</span>
+                </button>
+              </div>
               {couponError && <p className="text-[11px] text-rose-600 mt-1">{couponError}</p>}
               {cart?.coupon_code && (
                 <div className="mt-1 flex items-center justify-between text-xs text-emerald-700 bg-emerald-50 px-2 py-1 rounded-md">

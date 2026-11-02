@@ -12,7 +12,12 @@ import {
   Eye, 
   Check, 
   X,
-  PhoneCall
+  PhoneCall,
+  Flame,
+  Gift,
+  Copy,
+  Tag,
+  Percent
 } from 'lucide-react';
 import { api, Product, Category, CartData } from '../services/api';
 import { useAuth } from '../context/AuthContext';
@@ -34,6 +39,8 @@ export const CustomerStoreView: React.FC = () => {
   const PAGE_SIZE = 36;
   const [cart, setCart] = useState<CartData | null>(null);
   const [loading, setLoading] = useState<boolean>(true);
+  const [festivalOffer, setFestivalOffer] = useState<any>(null);
+  const [copiedCoupon, setCopiedCoupon] = useState<boolean>(false);
 
   // Filters & Search
   const [selectedCategory, setSelectedCategory] = useState<string>('all');
@@ -57,12 +64,14 @@ export const CustomerStoreView: React.FC = () => {
     const fetchData = async () => {
       setLoading(true);
       try {
-        const [catsRes, prodsRes] = await Promise.all([
+        const [catsRes, prodsRes, festRes] = await Promise.all([
           api.getCategories(),
-          api.getPublicProducts({ limit: PAGE_SIZE, offset: 0 })
+          api.getPublicProducts({ limit: PAGE_SIZE, offset: 0 }),
+          api.getFestivalOffer()
         ]);
         setCategories(catsRes.data);
         setProducts(prodsRes.data);
+        setFestivalOffer(festRes.data);
 
         // Fetch Cart if customer authenticated
         if (customerToken) {
@@ -144,6 +153,12 @@ export const CustomerStoreView: React.FC = () => {
     }
   };
 
+  const handleCopyCoupon = (code: string) => {
+    navigator.clipboard.writeText(code);
+    setCopiedCoupon(true);
+    setTimeout(() => setCopiedCoupon(false), 2500);
+  };
+
   const handleBuyNow = async (product: Product) => {
     if (!customerToken) {
       setIsAuthOpen(true);
@@ -191,50 +206,193 @@ export const CustomerStoreView: React.FC = () => {
         <CustomerOrdersView onBackToStore={() => setActiveView('catalog')} />
       ) : (
         <main className="flex-1 pb-16 space-y-6">
-          {/* Hero Promotional Banner */}
+          {/* Festive Diwali Mega Offer Hero Banner */}
           <div className="container mx-auto px-4 pt-6">
-            <div className="relative rounded-3xl bg-gradient-to-r from-blue-700 via-indigo-700 to-sky-600 text-white p-6 sm:p-10 shadow-xl overflow-hidden">
-              <div className="relative z-10 max-w-xl space-y-3">
-                <span className="inline-flex items-center space-x-1.5 px-3 py-1 rounded-full bg-white/20 backdrop-blur-md text-[11px] font-black uppercase tracking-wider text-blue-100">
-                  <Sparkles className="w-3.5 h-3.5 text-yellow-300" />
-                  <span>Grand Festival Season • Up to 55% Off</span>
-                </span>
-                <h2 className="text-2xl sm:text-4xl font-black tracking-tight leading-tight">
-                  Unified Shopping with Instant <span className="text-sky-300">AI Voice Calling</span>
+            <div className="relative rounded-3xl bg-gradient-to-r from-amber-600 via-orange-600 to-rose-700 text-white p-6 sm:p-10 shadow-2xl overflow-hidden border border-amber-300/30">
+              <div className="relative z-10 max-w-2xl space-y-4">
+                <div className="flex flex-wrap items-center gap-2">
+                  <span className="inline-flex items-center space-x-1.5 px-3.5 py-1 rounded-full bg-amber-900/40 backdrop-blur-md text-xs font-black uppercase tracking-wider text-yellow-200 border border-yellow-300/40 shadow-sm animate-pulse">
+                    <span>🪔</span>
+                    <span>{festivalOffer?.festival?.badge || 'DIWALI FESTIVE DHAMAKA 2026 LIVE'}</span>
+                  </span>
+                  <span className="inline-flex items-center space-x-1 px-3 py-1 rounded-full bg-white/20 text-xs font-bold text-white">
+                    <Sparkles className="w-3.5 h-3.5 text-yellow-200" />
+                    <span>Up to 75% OFF + Extra 25% Off</span>
+                  </span>
+                </div>
+
+                <h2 className="text-2xl sm:text-4xl lg:text-5xl font-black tracking-tight leading-tight">
+                  Grand Diwali Festival <span className="text-yellow-300 underline decoration-wavy decoration-yellow-400/60">Dhamaka Sale</span>
                 </h2>
-                <p className="text-xs sm:text-sm text-blue-100 leading-relaxed max-w-md">
-                  Shop top-rated products from trusted suppliers. Confirm orders seamlessly with our automated AI assistant speaking fluent Tamil, Telugu, Kannada, Malayalam, and English.
+
+                <p className="text-xs sm:text-sm text-amber-100 leading-relaxed max-w-xl font-medium">
+                  {festivalOffer?.festival?.subheading || 'Celebrate the Festival of Lights with trending Diwali deals across Electronics, Festive Kurtas & Sarees, Brass Diyas, Smart 4K TVs, and Royal Dry Fruit Hampers!'}
                 </p>
-                <div className="pt-2 flex flex-wrap gap-2 text-xs">
+
+                {/* Festival Coupon Box */}
+                <div className="pt-2 flex flex-col sm:flex-row items-start sm:items-center gap-3">
+                  <div className="flex items-center bg-white/15 backdrop-blur-md border border-white/30 rounded-2xl p-2 px-3 shadow-inner space-x-3">
+                    <Tag className="w-4 h-4 text-yellow-300" />
+                    <div>
+                      <p className="text-[10px] text-amber-200 font-bold uppercase tracking-wider">Diwali Festive Coupon</p>
+                      <p className="text-sm font-black text-yellow-300 tracking-wider font-mono">
+                        {festivalOffer?.festival?.coupon_code || 'DIWALI2026'}
+                      </p>
+                    </div>
+                    <button
+                      onClick={() => handleCopyCoupon(festivalOffer?.festival?.coupon_code || 'DIWALI2026')}
+                      className="ml-2 px-3 py-1.5 bg-yellow-400 hover:bg-yellow-300 text-slate-900 rounded-xl font-extrabold text-xs flex items-center space-x-1 cursor-pointer transition-all shadow-sm"
+                    >
+                      {copiedCoupon ? <Check className="w-3.5 h-3.5 text-emerald-700" /> : <Copy className="w-3.5 h-3.5" />}
+                      <span>{copiedCoupon ? 'Copied!' : 'Copy Code'}</span>
+                    </button>
+                  </div>
+
+                  <span className="text-xs text-amber-100 font-semibold bg-black/20 px-3 py-2 rounded-xl">
+                    Flat 25% Instant Off on Orders Above ₹499
+                  </span>
+                </div>
+
+                <div className="pt-1 flex flex-wrap gap-2 text-xs">
                   <span className="bg-white/10 px-3 py-1.5 rounded-xl flex items-center space-x-1.5 font-medium">
                     <Truck className="w-4 h-4 text-emerald-300" />
-                    <span>Free Shipping &gt; ₹499</span>
+                    <span>Free Diwali Festive Express Delivery</span>
+                  </span>
+                  <span className="bg-white/10 px-3 py-1.5 rounded-xl flex items-center space-x-1.5 font-medium">
+                    <Gift className="w-4 h-4 text-yellow-300" />
+                    <span>Free Festive Gift Wrapping</span>
                   </span>
                   <span className="bg-white/10 px-3 py-1.5 rounded-xl flex items-center space-x-1.5 font-medium">
                     <PhoneCall className="w-4 h-4 text-sky-300" />
-                    <span>Autonomous Confirmation Call</span>
-                  </span>
-                  <span className="bg-white/10 px-3 py-1.5 rounded-xl flex items-center space-x-1.5 font-medium">
-                    <ShieldCheck className="w-4 h-4 text-teal-300" />
-                    <span>7-Day Hassle-Free Returns</span>
+                    <span>AI Voice Confirmation in Your Language</span>
                   </span>
                 </div>
               </div>
 
-              {/* Decorative Circle Elements */}
-              <div className="absolute right-0 top-0 translate-x-1/4 -translate-y-1/4 w-96 h-96 bg-white/10 rounded-full blur-2xl pointer-events-none" />
-              <div className="absolute right-12 bottom-6 hidden lg:block opacity-90 pointer-events-none">
-                <div className="bg-white/10 backdrop-blur-md border border-white/20 p-4 rounded-2xl shadow-2xl text-left space-y-1.5 w-64">
+              {/* Decorative Diya / Glow Elements */}
+              <div className="absolute right-0 top-0 translate-x-1/4 -translate-y-1/4 w-96 h-96 bg-yellow-400/20 rounded-full blur-3xl pointer-events-none" />
+              <div className="absolute right-8 bottom-6 hidden lg:block opacity-95 pointer-events-none">
+                <div className="bg-black/30 backdrop-blur-md border border-amber-300/30 p-4 rounded-3xl shadow-2xl text-left space-y-2 w-72">
                   <div className="flex items-center space-x-2">
-                    <div className="w-2 h-2 rounded-full bg-emerald-400 animate-ping" />
-                    <p className="text-[10px] uppercase font-bold tracking-wider text-emerald-300">Live Voice Agent</p>
+                    <span className="text-2xl">🪔</span>
+                    <div>
+                      <p className="text-[11px] font-black tracking-wide text-yellow-300 uppercase">Diwali Festival Offer Engine</p>
+                      <p className="text-[10px] text-amber-200">Auto-detected for November Festive Season</p>
+                    </div>
                   </div>
-                  <p className="text-xs font-bold leading-tight">"வணக்கம்! உங்கள் ஆர்டர் உறுதியானது. நன்றி!"</p>
-                  <p className="text-[10px] text-blue-200">5 Languages Supported Contextually</p>
+                  <div className="p-2.5 bg-white/10 rounded-2xl text-xs space-y-1">
+                    <p className="font-bold text-white flex items-center justify-between">
+                      <span>Trending Festival Deals:</span>
+                      <span className="text-emerald-300 font-extrabold">Live Active</span>
+                    </p>
+                    <p className="text-[11px] text-amber-100">• Solid Brass Peacock Diya Sets</p>
+                    <p className="text-[11px] text-amber-100">• Kaju Katli & Royal Dry Fruit Box</p>
+                    <p className="text-[11px] text-amber-100">• Banarasi Silk Sarees & Kurtas</p>
+                    <p className="text-[11px] text-amber-100">• 4K Smart TVs & Smart RGB Lights</p>
+                  </div>
                 </div>
               </div>
             </div>
           </div>
+
+          {/* Trending Festival Products Showcase */}
+          {festivalOffer?.trending_products && festivalOffer.trending_products.length > 0 && (
+            <div className="container mx-auto px-4 pt-2">
+              <div className="bg-gradient-to-b from-amber-500/10 to-orange-500/5 p-6 rounded-3xl border border-amber-200/60 shadow-sm space-y-4">
+                <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2">
+                  <div>
+                    <div className="flex items-center space-x-2">
+                      <span className="text-xl">🪔</span>
+                      <h3 className="text-lg font-black text-slate-900 tracking-tight">
+                        Trending Diwali Festive Picks & Special Offers
+                      </h3>
+                      <span className="bg-rose-500 text-white text-[10px] font-black px-2 py-0.5 rounded-full uppercase">
+                        Limited Festival Stock
+                      </span>
+                    </div>
+                    <p className="text-xs text-slate-500 mt-0.5">
+                      Most loved festive products across India for Diwali celebrations with verified express delivery
+                    </p>
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
+                  {festivalOffer.trending_products.slice(0, 4).map((festProd: any) => (
+                    <div
+                      key={festProd.id || festProd.sku}
+                      className="bg-white rounded-2xl border-2 border-amber-300/80 shadow-md hover:shadow-xl hover:border-amber-500 transition-all duration-200 flex flex-col overflow-hidden group"
+                    >
+                      <div
+                        className="relative aspect-4/3 overflow-hidden bg-slate-100 cursor-pointer"
+                        onClick={() => setSelectedProduct(festProd)}
+                      >
+                        <img
+                          src={festProd.image_url || 'https://images.unsplash.com/photo-1605371924599-2d0365da1ae0?w=500'}
+                          alt={festProd.name}
+                          className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
+                          loading="lazy"
+                        />
+                        <span className="absolute top-2.5 left-2.5 bg-gradient-to-r from-amber-500 to-rose-600 text-white text-[10px] font-black px-2.5 py-1 rounded-full shadow-md flex items-center space-x-1">
+                          <span>🪔</span>
+                          <span>{festProd.festival_badge || 'Diwali Special'}</span>
+                        </span>
+                        <span className="absolute bottom-2.5 right-2.5 bg-black/70 backdrop-blur-xs text-yellow-300 text-[10px] font-extrabold px-2 py-0.5 rounded-md">
+                          {festProd.category}
+                        </span>
+                      </div>
+
+                      <div className="p-3.5 flex-1 flex flex-col justify-between space-y-2">
+                        <div>
+                          <div className="flex items-center space-x-1 text-amber-500 text-xs">
+                            <Star className="w-3 h-3 fill-amber-400 text-amber-400" />
+                            <span className="font-extrabold">{festProd.rating}</span>
+                            <span className="text-[10px] text-slate-400">({festProd.reviews_count} reviews)</span>
+                          </div>
+                          <h4 className="font-bold text-xs text-slate-900 line-clamp-2 mt-1 group-hover:text-amber-700 transition-colors">
+                            {festProd.name}
+                          </h4>
+                          <p className="text-[10px] text-emerald-600 font-semibold flex items-center space-x-1 mt-1">
+                            <Truck className="w-3 h-3" />
+                            <span className="truncate">{festProd.delivery_estimate || 'Festive Express Delivery'}</span>
+                          </p>
+                        </div>
+
+                        <div className="pt-2 border-t border-slate-100">
+                          <div className="flex items-baseline space-x-2">
+                            <span className="text-base font-black text-slate-900">₹{Number(festProd.price).toFixed(2)}</span>
+                            {festProd.original_price && festProd.original_price > festProd.price && (
+                              <span className="text-xs text-slate-400 line-through">
+                                ₹{Number(festProd.original_price).toFixed(2)}
+                              </span>
+                            )}
+                            <span className="text-[10px] font-bold text-rose-600 bg-rose-50 px-1.5 py-0.5 rounded">
+                              {festProd.discount_pct}% OFF
+                            </span>
+                          </div>
+
+                          <div className="grid grid-cols-2 gap-1.5 mt-2.5">
+                            <button
+                              onClick={() => handleAddToCart(festProd)}
+                              className="py-1.5 px-2 bg-amber-50 hover:bg-amber-100 text-amber-800 rounded-xl font-bold text-[11px] flex items-center justify-center space-x-1 cursor-pointer transition-colors"
+                            >
+                              <ShoppingBag className="w-3 h-3 text-amber-700" />
+                              <span>Add</span>
+                            </button>
+                            <button
+                              onClick={() => handleBuyNow(festProd)}
+                              className="py-1.5 px-2 bg-gradient-to-r from-amber-500 to-orange-600 hover:from-amber-600 hover:to-orange-700 text-white rounded-xl font-bold text-[11px] flex items-center justify-center cursor-pointer shadow-sm transition-all"
+                            >
+                              <span>Buy Now</span>
+                            </button>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </div>
+          )}
 
           {/* Catalog Toolbar & Sorting */}
           <div className="container mx-auto px-4">

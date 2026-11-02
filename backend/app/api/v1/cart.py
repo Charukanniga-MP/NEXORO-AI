@@ -46,6 +46,11 @@ COUPONS = {
     "WELCOME10": {"type": "PERCENT", "value": 10, "min_order": 500},
     "KHAIRA50": {"type": "FLAT", "value": 50, "min_order": 400},
     "FESTIVE20": {"type": "PERCENT", "value": 20, "min_order": 1000},
+    "DIWALI2026": {"type": "PERCENT", "value": 25, "min_order": 499},
+    "DIWALI": {"type": "PERCENT", "value": 20, "min_order": 499},
+    "DIWALIDHAMAKA": {"type": "FLAT", "value": 250, "min_order": 999},
+    "XMAS2026": {"type": "PERCENT", "value": 20, "min_order": 499},
+    "PONGAL2027": {"type": "PERCENT", "value": 15, "min_order": 499},
 }
 
 def recalculate_cart(cart: Cart) -> CartResponse:

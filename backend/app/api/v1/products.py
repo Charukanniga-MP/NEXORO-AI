@@ -15,6 +15,7 @@ from app.schemas.product import (
 )
 from app.services.marketplace_service import marketplace_service
 from app.services.live_catalog_service import live_catalog_service
+from app.services.festival_service import festival_service
 
 router = APIRouter()
 
@@ -43,6 +44,17 @@ async def list_categories(db: AsyncSession = Depends(get_db)):
         categories = res.scalars().all()
         
     return categories
+
+@router.get("/festival-offer")
+async def get_festival_offer(
+    month: Optional[int] = Query(None, description="Month number 1-12 to query festival offer"),
+    db: AsyncSession = Depends(get_db)
+):
+    """
+    Returns the active upcoming festival (e.g. Diwali in November),
+    active festive discount coupons, and top trending festival deals.
+    """
+    return await festival_service.get_festival_offer_data(db, month)
 
 @router.get("/public", response_model=List[CustomerProductResponse])
 async def list_public_products(

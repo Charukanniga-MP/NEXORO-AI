@@ -168,3 +168,4 @@ class LiveCatalogService:
         return all_products
 
 live_catalog_service = LiveCatalogService()
+
