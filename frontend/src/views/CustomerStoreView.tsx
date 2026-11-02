@@ -26,6 +26,7 @@ import { CartDrawer } from '../components/customer/CartDrawer';
 import { CheckoutModal } from '../components/customer/CheckoutModal';
 import { CustomerAuthModal } from '../components/customer/CustomerAuthModal';
 import { OrderConfirmationModal } from '../components/customer/OrderConfirmationModal';
+import { ProductDetailModal } from '../components/customer/ProductDetailModal';
 import { CustomerOrdersView } from './CustomerOrdersView';
 
 export const CustomerStoreView: React.FC = () => {
@@ -138,13 +139,13 @@ export const CustomerStoreView: React.FC = () => {
     }
   };
 
-  const handleAddToCart = async (product: Product) => {
+  const handleAddToCart = async (product: Product, quantity: number = 1) => {
     if (!customerToken) {
       setIsAuthOpen(true);
       return;
     }
     try {
-      const res = await api.addToCart(product.id, 1);
+      const res = await api.addToCart(product.id, quantity);
       setCart(res.data);
       setCartCount(res.data.items_count);
       setIsCartOpen(true);
@@ -159,13 +160,13 @@ export const CustomerStoreView: React.FC = () => {
     setTimeout(() => setCopiedCoupon(false), 2500);
   };
 
-  const handleBuyNow = async (product: Product) => {
+  const handleBuyNow = async (product: Product, quantity: number = 1) => {
     if (!customerToken) {
       setIsAuthOpen(true);
       return;
     }
     try {
-      const res = await api.addToCart(product.id, 1);
+      const res = await api.addToCart(product.id, quantity);
       setCart(res.data);
       setCartCount(res.data.items_count);
       setIsCheckoutOpen(true);
@@ -563,101 +564,13 @@ export const CustomerStoreView: React.FC = () => {
       )}
 
       {/* Product Detail Modal */}
-      {selectedProduct && (
-        <div className="fixed inset-0 z-50 overflow-y-auto bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4">
-          <div className="bg-white w-full max-w-2xl rounded-3xl shadow-2xl overflow-hidden border border-slate-100 animate-in fade-in zoom-in-95 duration-200">
-            <div className="p-4 border-b border-slate-100 flex items-center justify-between">
-              <span className="bg-blue-50 text-blue-700 font-bold text-xs px-2.5 py-0.5 rounded-full">
-                {selectedProduct.category}
-              </span>
-              <button
-                onClick={() => setSelectedProduct(null)}
-                className="p-1 hover:bg-slate-100 rounded-lg text-slate-500 cursor-pointer"
-              >
-                <X className="w-5 h-5" />
-              </button>
-            </div>
-
-            <div className="p-6 grid grid-cols-1 md:grid-cols-2 gap-6 text-xs">
-              <div className="space-y-3">
-                <img
-                  src={selectedProduct.image_url || 'https://images.unsplash.com/photo-1505740420928-5e560c06d30e?w=600'}
-                  alt={selectedProduct.name}
-                  className="w-full aspect-square rounded-2xl object-cover border border-slate-200 shadow-xs"
-                />
-                <div className="bg-blue-50/70 p-3 rounded-xl border border-blue-100 text-[11px] text-blue-900 flex items-center space-x-2">
-                  <PhoneCall className="w-4 h-4 text-blue-600 shrink-0" />
-                  <span>Free AI Voice Confirmation call triggered in your language upon order.</span>
-                </div>
-              </div>
-
-              <div className="flex flex-col justify-between space-y-4">
-                <div className="space-y-2">
-                  <h3 className="font-extrabold text-base text-slate-900 leading-snug">{selectedProduct.name}</h3>
-                  <div className="flex items-center space-x-2 text-xs">
-                    <span className="bg-amber-100 text-amber-800 font-black px-1.5 py-0.5 rounded-md flex items-center">
-                      <Star className="w-3 h-3 fill-current mr-1" /> {selectedProduct.rating || 4.5}
-                    </span>
-                    <span className="text-slate-400">({selectedProduct.reviews_count || 120} verified ratings)</span>
-                  </div>
-
-                  <div className="flex items-baseline space-x-2.5 pt-1">
-                    <span className="text-2xl font-black text-slate-900">₹{Number(selectedProduct.price).toFixed(2)}</span>
-                    {selectedProduct.original_price && (
-                      <span className="text-sm text-slate-400 line-through">
-                        ₹{Number(selectedProduct.original_price).toFixed(2)}
-                      </span>
-                    )}
-                    {selectedProduct.discount_pct && (
-                      <span className="text-xs text-rose-600 font-bold">({selectedProduct.discount_pct}% off)</span>
-                    )}
-                  </div>
-
-                  <p className="text-slate-600 leading-relaxed pt-1 text-xs">{selectedProduct.description}</p>
-
-                  {/* Specifications Table */}
-                  {selectedProduct.specifications && Object.keys(selectedProduct.specifications).length > 0 && (
-                    <div className="pt-2">
-                      <p className="font-bold text-slate-800 text-[11px] uppercase tracking-wider mb-1.5">
-                        Product Specifications:
-                      </p>
-                      <div className="bg-slate-50 rounded-xl p-2.5 border border-slate-200 divide-y divide-slate-200/60 text-[11px]">
-                        {Object.entries(selectedProduct.specifications).map(([k, v]) => (
-                          <div key={k} className="py-1 flex justify-between">
-                            <span className="text-slate-500 font-medium">{k}</span>
-                            <span className="font-bold text-slate-800 text-right">{String(v)}</span>
-                          </div>
-                        ))}
-                      </div>
-                    </div>
-                  )}
-                </div>
-
-                <div className="pt-3 border-t border-slate-100 grid grid-cols-2 gap-2">
-                  <button
-                    onClick={() => {
-                      handleAddToCart(selectedProduct);
-                      setSelectedProduct(null);
-                    }}
-                    className="py-3 bg-slate-100 hover:bg-slate-200 text-slate-900 font-bold rounded-xl cursor-pointer transition-colors"
-                  >
-                    Add to Cart
-                  </button>
-                  <button
-                    onClick={() => {
-                      handleBuyNow(selectedProduct);
-                      setSelectedProduct(null);
-                    }}
-                    className="py-3 bg-blue-600 hover:bg-blue-700 text-white font-bold rounded-xl shadow-md shadow-blue-500/20 cursor-pointer transition-all"
-                  >
-                    Instant Buy Now
-                  </button>
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
+      <ProductDetailModal
+        product={selectedProduct}
+        isOpen={!!selectedProduct}
+        onClose={() => setSelectedProduct(null)}
+        onAddToCart={handleAddToCart}
+        onBuyNow={handleBuyNow}
+      />
 
       {/* Cart Drawer */}
       <CartDrawer
