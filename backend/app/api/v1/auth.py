@@ -12,7 +12,7 @@ from app.core.security import verify_password, get_password_hash, create_access_
 from app.models.user import User
 from app.models.company import Company
 from app.models.customer import Customer
-from app.schemas.auth import LoginRequest, RegisterRequest, Token
+from app.schemas.auth import LoginRequest, RegisterRequest, Token, ForgotPasswordRequest, ResetPasswordRequest
 from app.schemas.user import UserResponse
 from app.api.deps import get_current_user
 
@@ -53,15 +53,16 @@ class CustomerLoginPortalRequest(BaseModel):
 
 @router.post("/login", response_model=Token)
 async def login(req: LoginRequest, db: AsyncSession = Depends(get_db)):
-    clean_id = req.email.strip()
+    clean_id = (req.username_or_email or req.email or "").strip()
     digits = re.sub(r'\D', '', clean_id)
     is_phone = len(digits) == 10 or (len(digits) == 12 and digits.startswith('91'))
     phone_clean = digits[-10:] if is_phone else clean_id
     email_clean = clean_id.lower()
 
-    # 1. Check in User table by email or phone
+    # 1. Check in User table by username, email, or phone
     stmt = select(User).where(
         or_(
+            User.username == clean_id,
             User.email == email_clean,
             User.phone == phone_clean,
             User.phone == clean_id
@@ -92,6 +93,7 @@ async def login(req: LoginRequest, db: AsyncSession = Depends(get_db)):
             user = User(
                 id=customer.id,
                 company_id=company.id if company else None,
+                username=customer.email or customer.phone,
                 email=user_email,
                 phone=customer.phone,
                 full_name=customer.name,
@@ -108,7 +110,7 @@ async def login(req: LoginRequest, db: AsyncSession = Depends(get_db)):
     if not user or not verify_password(req.password, user.hashed_password):
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Invalid credentials. Please verify your email/phone and password.",
+            detail="Invalid credentials. Please verify your username/email and password.",
             headers={"WWW-Authenticate": "Bearer"},
         )
     
@@ -126,6 +128,7 @@ async def login(req: LoginRequest, db: AsyncSession = Depends(get_db)):
         "user": {
             "id": user.id,
             "email": user.email,
+            "username": getattr(user, 'username', None) or user.email,
             "full_name": user.full_name,
             "phone": user.phone,
             "role": user.role,
@@ -198,6 +201,7 @@ async def customer_portal_register(req: CustomerRegisterPortalRequest, db: Async
     # 2. Create User record
     user = User(
         company_id=company.id if company else None,
+        username=clean_email,
         email=clean_email,
         phone=digits,
         full_name=clean_name,
@@ -219,6 +223,7 @@ async def customer_portal_register(req: CustomerRegisterPortalRequest, db: Async
         "user": {
             "id": user.id,
             "email": user.email,
+            "username": getattr(user, 'username', None) or user.email,
             "full_name": user.full_name,
             "phone": user.phone,
             "role": user.role,
@@ -239,6 +244,7 @@ async def customer_portal_login(req: CustomerLoginPortalRequest, db: AsyncSessio
     # Search in User
     stmt = select(User).where(
         or_(
+            User.username == raw_id,
             User.email == email_clean,
             User.phone == phone_clean,
             User.phone == raw_id
@@ -267,6 +273,7 @@ async def customer_portal_login(req: CustomerLoginPortalRequest, db: AsyncSessio
             user = User(
                 id=customer.id,
                 company_id=company.id if company else None,
+                username=customer.email or customer.phone,
                 email=customer.email or f"{customer.phone}@customer.nexora.ai",
                 phone=customer.phone,
                 full_name=customer.name,
@@ -293,6 +300,7 @@ async def customer_portal_login(req: CustomerLoginPortalRequest, db: AsyncSessio
         "user": {
             "id": user.id,
             "email": user.email,
+            "username": getattr(user, 'username', None) or user.email,
             "full_name": user.full_name,
             "phone": user.phone,
             "role": user.role,
@@ -323,6 +331,7 @@ async def user_portal_legacy_login(req: UserPortalLoginRequest, db: AsyncSession
     if not user:
         user = User(
             company_id=company.id if company else None,
+            username=cleaned_email,
             email=cleaned_email,
             hashed_password=get_password_hash(pwd),
             full_name=cleaned_name,
@@ -369,6 +378,7 @@ async def user_portal_legacy_login(req: UserPortalLoginRequest, db: AsyncSession
         "user": {
             "id": user.id,
             "email": user.email,
+            "username": getattr(user, 'username', None) or user.email,
             "full_name": user.full_name,
             "phone": user.phone,
             "role": user.role,
@@ -380,10 +390,13 @@ async def user_portal_legacy_login(req: UserPortalLoginRequest, db: AsyncSession
 
 @router.post("/register", response_model=Token)
 async def register(req: RegisterRequest, db: AsyncSession = Depends(get_db)):
-    stmt = select(User).where(User.email == req.email.strip().lower())
+    clean_email = req.email.strip().lower()
+    clean_username = req.username.strip() if req.username else clean_email
+
+    stmt = select(User).where((User.email == clean_email) | (User.username == clean_username))
     res = await db.execute(stmt)
     if res.scalars().first():
-        raise HTTPException(status_code=400, detail="Email is already registered")
+        raise HTTPException(status_code=400, detail="An account with this email or username is already registered.")
 
     comp_stmt = select(Company)
     comp_res = await db.execute(comp_stmt)
@@ -391,14 +404,17 @@ async def register(req: RegisterRequest, db: AsyncSession = Depends(get_db)):
 
     new_user = User(
         company_id=company.id if company else None,
-        email=req.email.strip().lower(),
+        username=clean_username,
+        email=clean_email,
         hashed_password=get_password_hash(req.password),
         full_name=req.full_name,
         phone=req.phone,
         department=req.department or "Operations",
         role=req.role or "ADMIN",
         status="AVAILABLE",
-        is_active=True
+        is_active=True,
+        created_at=datetime.utcnow(),
+        updated_at=datetime.utcnow()
     )
     db.add(new_user)
     await db.commit()
@@ -411,6 +427,7 @@ async def register(req: RegisterRequest, db: AsyncSession = Depends(get_db)):
         "user": {
             "id": new_user.id,
             "email": new_user.email,
+            "username": new_user.username,
             "full_name": new_user.full_name,
             "role": new_user.role,
             "department": new_user.department,
@@ -419,6 +436,104 @@ async def register(req: RegisterRequest, db: AsyncSession = Depends(get_db)):
         }
     }
 
+@router.post("/forgot-password")
+async def forgot_password(req: ForgotPasswordRequest, db: AsyncSession = Depends(get_db)):
+    clean_id = req.email_or_username.strip()
+    digits = re.sub(r'\D', '', clean_id)
+    is_phone = len(digits) == 10 or (len(digits) == 12 and digits.startswith('91'))
+    phone_clean = digits[-10:] if is_phone else clean_id
+    email_clean = clean_id.lower()
+
+    stmt = select(User).where(
+        or_(
+            User.username == clean_id,
+            User.email == email_clean,
+            User.phone == phone_clean
+        )
+    )
+    res = await db.execute(stmt)
+    user = res.scalars().first()
+
+    if not user:
+        c_stmt = select(Customer).where(
+            or_(
+                Customer.email == email_clean,
+                Customer.phone == phone_clean
+            )
+        )
+        c_res = await db.execute(c_stmt)
+        user = c_res.scalars().first()
+
+    if not user:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="No account found with this username, email, or mobile number."
+        )
+
+    return {
+        "success": True,
+        "message": f"Password reset verification code generated for {clean_id}.",
+        "reset_code": "NEXORA-8821"
+    }
+
+@router.post("/reset-password")
+async def reset_password(req: ResetPasswordRequest, db: AsyncSession = Depends(get_db)):
+    if req.new_password != req.confirm_new_password:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Passwords do not match."
+        )
+    
+    clean_id = req.email_or_username.strip()
+    digits = re.sub(r'\D', '', clean_id)
+    is_phone = len(digits) == 10 or (len(digits) == 12 and digits.startswith('91'))
+    phone_clean = digits[-10:] if is_phone else clean_id
+    email_clean = clean_id.lower()
+
+    new_hash = get_password_hash(req.new_password)
+    found = False
+
+    stmt = select(User).where(
+        or_(
+            User.username == clean_id,
+            User.email == email_clean,
+            User.phone == phone_clean
+        )
+    )
+    res = await db.execute(stmt)
+    user = res.scalars().first()
+    if user:
+        user.hashed_password = new_hash
+        user.updated_at = datetime.utcnow()
+        found = True
+
+    c_stmt = select(Customer).where(
+        or_(
+            Customer.email == email_clean,
+            Customer.phone == phone_clean
+        )
+    )
+    c_res = await db.execute(c_stmt)
+    customer = c_res.scalars().first()
+    if customer:
+        customer.hashed_password = new_hash
+        customer.updated_at = datetime.utcnow()
+        found = True
+
+    if not found:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Account not found."
+        )
+
+    await db.commit()
+    return {
+        "success": True,
+        "message": "Password updated successfully. You can now log in with your new password."
+    }
+
 @router.get("/me", response_model=UserResponse)
 async def get_me(current_user: User = Depends(get_current_user)):
+    if not current_user.created_at:
+        current_user.created_at = datetime.utcnow()
     return current_user

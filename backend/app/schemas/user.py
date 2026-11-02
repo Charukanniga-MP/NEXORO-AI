@@ -26,11 +26,11 @@ class UserUpdate(BaseModel):
 
 class UserResponse(UserBase):
     id: str
-    is_active: bool
-    is_superuser: bool
+    username: Optional[str] = None
+    is_active: bool = True
+    is_superuser: bool = False
     avatar_url: Optional[str] = None
-    created_at: datetime
+    created_at: Optional[datetime] = None
 
     class Config:
         from_attributes = True
-
