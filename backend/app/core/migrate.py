@@ -6,6 +6,9 @@ from app.core.config import settings
 logger = logging.getLogger(__name__)
 
 MIGRATIONS = {
+    "users": [
+        ("username", "TEXT"),
+    ],
     "customers": [
         ("customer_code", "TEXT"),
         ("hashed_password", "TEXT"),
@@ -18,6 +21,9 @@ MIGRATIONS = {
         ("role", "TEXT DEFAULT 'CUSTOMER'"),
         ("is_active", "BOOLEAN DEFAULT 1"),
         ("total_orders_count", "INTEGER DEFAULT 0"),
+        ("avatar_url", "TEXT"),
+        ("upi_id", "TEXT DEFAULT 'user@okhdfcbank'"),
+        ("wallet_balance", "NUMERIC(10, 2) DEFAULT 500.00"),
     ],
     "products": [
         ("original_price", "NUMERIC(10, 2)"),
@@ -84,4 +90,3 @@ def run_sqlite_migrations(db_path: str = "nexora.db"):
 if __name__ == "__main__":
     logging.basicConfig(level=logging.INFO)
     run_sqlite_migrations()
-
