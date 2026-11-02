@@ -139,7 +139,7 @@ export const CustomerStoreView: React.FC = () => {
     }
   };
 
-  const handleAddToCart = async (product: Product, quantity: number = 1) => {
+  const handleAddToCart = async (product: Product, quantity: number = 1, _variant?: any) => {
     if (!customerToken) {
       setIsAuthOpen(true);
       return;
@@ -160,7 +160,7 @@ export const CustomerStoreView: React.FC = () => {
     setTimeout(() => setCopiedCoupon(false), 2500);
   };
 
-  const handleBuyNow = async (product: Product, quantity: number = 1) => {
+  const handleBuyNow = async (product: Product, quantity: number = 1, _variant?: any) => {
     if (!customerToken) {
       setIsAuthOpen(true);
       return;

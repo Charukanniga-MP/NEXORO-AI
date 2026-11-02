@@ -4,6 +4,7 @@ import json
 import uuid
 from decimal import Decimal
 from typing import List, Dict, Any, Optional
+from app.services.category_specification_service import category_spec_service
 
 logger = logging.getLogger(__name__)
 
@@ -95,20 +96,36 @@ class LiveCatalogService:
                     orig_inr = int(price_inr / (1 - (disc / 100))) if disc < 90 else price_inr + 500
 
                     img = p.get("thumbnail")
-                    if not img and p.get("images"):
-                        img = p["images"][0]
+                    p_images = p.get("images") or []
+                    if img and img not in p_images:
+                        p_images = [img] + p_images
+                    if not img and p_images:
+                        img = p_images[0]
 
-                    specs = {
-                        "Brand": p.get("brand", "Global Quality"),
-                        "SKU": p.get("sku", f"DJ-{p.get('id')}"),
-                        "Warranty": p.get("warrantyInformation", "1 Year Brand Warranty"),
-                        "Shipping": p.get("shippingInformation", "Delivery in 2-3 business days"),
-                        "Return Policy": p.get("returnPolicy", "7-Day Easy Returns")
-                    }
+                    p_title = p.get("title", "Product")
+                    existing_meta = {"Brand": p.get("brand") or ""}
+                    if p.get("weight"):
+                        existing_meta["Weight"] = f"{p['weight']}g"
+                    if p.get("dimensions") and isinstance(p["dimensions"], dict):
+                        d = p["dimensions"]
+                        existing_meta["Dimensions"] = f"{d.get('width', 0)} x {d.get('height', 0)} x {d.get('depth', 0)} cm"
+
+                    specs = category_spec_service.get_category_specifications(
+                        category=mapped_cat,
+                        name=p_title,
+                        existing_specs=existing_meta,
+                        price=price_inr
+                    )
+                    specs["images"] = p_images
+                    specs["Warranty"] = category_spec_service.get_warranty_info(mapped_cat, p_title)
+                    specs["Return Policy"] = category_spec_service.get_return_policy(mapped_cat)
+                    specs["Certifications"] = category_spec_service.get_certifications(mapped_cat)
+                    specs["customer_reviews"] = p.get("reviews", []) or category_spec_service.get_authentic_reviews(mapped_cat, p_title)
+                    specs["variants"] = category_spec_service.get_category_variants(mapped_cat, price_inr, f"DJ-{p.get('id'):04d}", p_title)
 
                     transformed.append({
                         "sku": f"DJ-{p.get('id'):04d}",
-                        "name": p.get("title", "Product"),
+                        "name": p_title,
                         "category": mapped_cat,
                         "description": p.get("description", ""),
                         "price": Decimal(str(price_inr)),
@@ -141,8 +158,22 @@ class LiveCatalogService:
         for cat_name, items in CATEGORY_SEEDS.items():
             for idx, item in enumerate(items, 1):
                 disc = int(((item["orig"] - item["price"]) / item["orig"]) * 100)
+                seed_sku = f"SUP-{cat_name[:3].upper()}-{idx:03d}"
+                specs = category_spec_service.get_category_specifications(
+                    category=cat_name,
+                    name=item["name"],
+                    existing_specs={"Brand": "Nexora Select"},
+                    price=item["price"]
+                )
+                specs["images"] = [item["img"]]
+                specs["Warranty"] = category_spec_service.get_warranty_info(cat_name, item["name"])
+                specs["Return Policy"] = category_spec_service.get_return_policy(cat_name)
+                specs["Certifications"] = category_spec_service.get_certifications(cat_name)
+                specs["customer_reviews"] = category_spec_service.get_authentic_reviews(cat_name, item["name"])
+                specs["variants"] = category_spec_service.get_category_variants(cat_name, item["price"], seed_sku, item["name"])
+
                 all_products.append({
-                    "sku": f"SUP-{cat_name[:3].upper()}-{idx:03d}",
+                    "sku": seed_sku,
                     "name": item["name"],
                     "category": cat_name,
                     "description": item["desc"],
@@ -155,11 +186,7 @@ class LiveCatalogService:
                     "image_url": item["img"],
                     "stock_quantity": 40 + idx,
                     "delivery_estimate": "Delivery within 2 business days",
-                    "specifications": {
-                        "Authenticity": "100% Genuine Verified",
-                        "Warranty": "1 Year Manufacturer Guarantee",
-                        "Replacement": "7 Days Hassle-Free"
-                    },
+                    "specifications": specs,
                     "source_marketplace": "CURATED",
                     "source_product_id": f"CAT-{idx}",
                     "supplier_cost": Decimal(str(int(item["price"] * 0.7)))

@@ -370,6 +370,16 @@ export const api = {
   getPublicProducts: (params?: { search?: string; category?: string; sort_by?: string; min_price?: number; max_price?: number; limit?: number; offset?: number }) =>
     apiClient.get<Product[]>('/products/public', { params }),
   getPublicProduct: (productId: string) => apiClient.get<Product>(`/products/public/${productId}`),
+  askAIAboutProduct: (productId: string, question: string, language: string = 'en') =>
+    apiClient.post<{ answer: string; language: string; product_id: string; product_name: string; status: string }>(
+      `/products/public/${productId}/ask-ai`,
+      { question, language }
+    ),
+  addProductReview: (productId: string, data: { name: string; rating: number; title: string; comment: string }) =>
+    apiClient.post<{ status: string; review: any; rating: number; reviews_count: number }>(
+      `/products/public/${productId}/reviews`,
+      data
+    ),
 
   // Shopping Cart
   getCart: () => apiClient.get<CartData>('/cart'),
