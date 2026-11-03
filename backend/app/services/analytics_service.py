@@ -10,6 +10,7 @@ from app.models.customer import Customer
 from app.models.order import Order
 from app.models.payment import Payment
 from app.models.complaint import Complaint
+from app.models.appointment import Appointment
 from app.services.call_queue_manager import call_queue_manager
 
 class AnalyticsService:
@@ -76,6 +77,37 @@ class AnalyticsService:
         ai_calls_pending = sum(1 for o in all_orders if o.ai_call_status in ["PENDING", "INITIATED", "RINGING"])
         ai_calls_failed = sum(1 for o in all_orders if o.ai_call_status in ["FAILED", "NOT_ANSWERED", "RETRY_SCHEDULED"])
 
+        # Extended Telemetry
+        agent_stmt = select(func.count(User.id)).where(User.role == "AGENT", User.is_active == True)
+        agent_res = await db.execute(agent_stmt)
+        total_ai_agents = agent_res.scalar() or 4
+
+        successful_calls = sum(1 for c in all_calls if c.status == "COMPLETED")
+        failed_calls = sum(1 for c in all_calls if c.status in ["FAILED", "NOT_ANSWERED", "CALL_FAILED"])
+        pending_calls = sum(1 for c in all_calls if c.status in ["PENDING", "INITIATED", "RINGING", "RETRY_SCHEDULED"])
+
+        # Payments table counts
+        pay_failed_stmt = select(func.count(Payment.id)).where(Payment.status == "FAILED")
+        pay_failed_res = await db.execute(pay_failed_stmt)
+        failed_payments = pay_failed_res.scalar() or 0
+
+        # Complaints count
+        comp_stmt = select(func.count(Complaint.id))
+        comp_res = await db.execute(comp_stmt)
+        customer_complaints = comp_res.scalar() or 0
+
+        # Feedback count (calls with intent or category of feedback)
+        customer_feedback = sum(1 for c in all_calls if getattr(c, "category", "") == "CUSTOMER_FEEDBACK" or c.intent == "Customer Feedback")
+
+        # Appointments
+        appts_stmt = select(Appointment)
+        appts_res = await db.execute(appts_stmt)
+        all_appts = appts_res.scalars().all()
+        total_appointments = len(all_appts)
+        confirmed_appointments = sum(1 for a in all_appts if a.status in ["CONFIRMED", "COMPLETED"])
+        scheduled_appointments = sum(1 for a in all_appts if a.status == "SCHEDULED")
+        cancelled_appointments = sum(1 for a in all_appts if a.status in ["CANCELLED", "RESCHEDULED"])
+
         return {
             "total_calls": total,
             "incoming_calls": incoming,
@@ -100,7 +132,19 @@ class AnalyticsService:
             "total_revenue": total_revenue,
             "ai_calls_completed": ai_calls_completed,
             "ai_calls_pending": ai_calls_pending,
-            "ai_calls_failed": ai_calls_failed
+            "ai_calls_failed": ai_calls_failed,
+            "total_ai_agents": total_ai_agents,
+            "total_customer_calls": total,
+            "successful_calls": successful_calls,
+            "failed_calls": failed_calls,
+            "pending_calls": pending_calls,
+            "failed_payments": failed_payments,
+            "customer_complaints": customer_complaints,
+            "customer_feedback": customer_feedback,
+            "total_appointments": total_appointments,
+            "confirmed_appointments": confirmed_appointments,
+            "scheduled_appointments": scheduled_appointments,
+            "cancelled_appointments": cancelled_appointments
         }
 
     async def get_language_distribution(self, db: AsyncSession) -> List[Dict[str, Any]]:

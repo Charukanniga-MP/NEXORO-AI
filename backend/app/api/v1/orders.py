@@ -18,6 +18,7 @@ from app.schemas.order import (
 )
 from app.api.deps import get_current_customer, get_current_user
 from app.services.ai_calling_agent import ai_calling_agent
+from app.services.event_dispatcher import event_dispatcher
 
 router = APIRouter()
 
@@ -105,11 +106,11 @@ async def checkout_cart(
     ai_call_result = None
     # 2. If Cash on Delivery, trigger AI Outbound Confirmation Call immediately!
     if is_cod:
-        ai_call_result = await ai_calling_agent.initiate_order_confirmation_call(
+        ai_call_result = await event_dispatcher.on_order_created(
             order=order,
             customer=customer,
             db=db,
-            simulate_outcome="CONFIRMED"
+            simulate_outcome="SUCCESS"
         )
 
     return {
@@ -220,10 +221,27 @@ async def update_order(order_id: str, req: OrderUpdate, db: AsyncSession = Depen
     if not order:
         raise HTTPException(status_code=404, detail="Order not found")
 
+    old_status = order.status
     update_data = req.model_dump(exclude_unset=True)
     for field, val in update_data.items():
         setattr(order, field, val)
 
     await db.commit()
     await db.refresh(order)
+
+    # Automated Event Detection: Detect order status change and dispatch calls
+    if req.status and req.status != old_status:
+        c_stmt = select(Customer).where(Customer.id == order.customer_id)
+        c_res = await db.execute(c_stmt)
+        customer = c_res.scalars().first()
+        if customer:
+            if order.status in ["ORDER_DELAYED", "DELAYED"]:
+                await event_dispatcher.on_order_delayed(order, customer, db)
+            elif order.status == "CANCELLED":
+                await event_dispatcher.on_order_cancelled(order, customer, db)
+            elif order.status == "DELIVERED":
+                await event_dispatcher.on_order_delivered(order, customer, db)
+            elif order.status in ["ORDER_CONFIRMED", "PROCESSING"]:
+                await event_dispatcher.on_order_created(order, customer, db)
+
     return order

@@ -104,12 +104,13 @@ async def seed_initial_data():
         if not agent_legacy:
             agent_legacy = User(
                 company_id=company.id,
+                username="agent",
                 email="agent@nexora.ai",
                 hashed_password=get_password_hash("agent"),
-                full_name="Sarah Chen (AI Voice Receptionist)",
-                phone="9876543202",
+                full_name="Sarah Jenkins (AI Agent Specialist)",
+                phone="+91-80-6000-4402",
                 extension="102",
-                department="Customer Voice Reception",
+                department="Order Fulfillment & Dispatch",
                 role="AGENT",
                 status="AVAILABLE",
                 is_superuser=False
@@ -117,8 +118,65 @@ async def seed_initial_data():
             session.add(agent_legacy)
         else:
             agent_legacy.hashed_password = get_password_hash("agent")
+            agent_legacy.full_name = "Sarah Jenkins (AI Agent Specialist)"
+            agent_legacy.username = "agent"
             agent_legacy.role = "AGENT"
+            agent_legacy.department = "Order Fulfillment & Dispatch"
             agent_legacy.is_active = True
+
+        agent_karthik_check = await session.execute(select(User).where(User.email == "karthik.rajan@nexora.ai"))
+        agent_karthik = agent_karthik_check.scalars().first()
+        if not agent_karthik:
+            agent_karthik = User(
+                company_id=company.id,
+                username="karthik",
+                email="karthik.rajan@nexora.ai",
+                hashed_password=get_password_hash("agent"),
+                full_name="Karthik Rajan (Regional Tamil Specialist)",
+                phone="+91-80-6000-4403",
+                extension="103",
+                department="Tamil Voice Operations",
+                role="AGENT",
+                status="AVAILABLE",
+                is_superuser=False
+            )
+            session.add(agent_karthik)
+
+        agent_priya_check = await session.execute(select(User).where(User.email == "priya.sharma@nexora.ai"))
+        agent_priya = agent_priya_check.scalars().first()
+        if not agent_priya:
+            agent_priya = User(
+                company_id=company.id,
+                username="priya",
+                email="priya.sharma@nexora.ai",
+                hashed_password=get_password_hash("agent"),
+                full_name="Priya Sharma (Payment & Billing Specialist)",
+                phone="+91-80-6000-4404",
+                extension="104",
+                department="Payments & Billing Solutions",
+                role="AGENT",
+                status="AVAILABLE",
+                is_superuser=False
+            )
+            session.add(agent_priya)
+
+        agent_vikram_check = await session.execute(select(User).where(User.email == "vikram.malhotra@nexora.ai"))
+        agent_vikram = agent_vikram_check.scalars().first()
+        if not agent_vikram:
+            agent_vikram = User(
+                company_id=company.id,
+                username="vikram",
+                email="vikram.malhotra@nexora.ai",
+                hashed_password=get_password_hash("agent"),
+                full_name="Vikram Malhotra (Senior Resolutions Manager)",
+                phone="+91-80-6000-4405",
+                extension="105",
+                department="Executive Escalations & Complaints",
+                role="AGENT",
+                status="AVAILABLE",
+                is_superuser=False
+            )
+            session.add(agent_vikram)
 
         demo_cust_check = await session.execute(select(User).where(User.email == "john.miller@example.com"))
         demo_cust_user = demo_cust_check.scalars().first()

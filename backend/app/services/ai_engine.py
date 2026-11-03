@@ -307,6 +307,46 @@ class AIEngine:
                 text = "Hello! Welcome to Khaira Company. I am Khaira AI, your autonomous voice and multimodal assistant. I can assist you with natural voice calls in 5 languages, image analysis (you can upload two or more images!), order tracking, product specifications, and appointments. How can I help you today?"
             return {"text": text, "intent": "GREETING", "sources": ["Khaira Conversational Identity"]}
 
+        # 1. "Where is my order?" & Order Tracking
+        if any(term in q_lower for term in ["where is my order", "track my order", "order status", "my order", "delivery status", "ஆர்டர் எங்கே", "பார்சல் எங்கே", "ஆர்டர் நிலவரம்"]):
+            if lang == "ta":
+                text = "தங்களின் ஆர்டர் வெற்றிகரமாக உறுதிப்படுத்தப்பட்டு தற்போது செயலாக்கத்தில் உள்ளது! BlueDart Express மூலம் பார்சல் அனுப்பி வைக்கப்பட்டு, எஸ்.எம்.எஸ் மூலம் லைவ் டிராக்கிங் இணைப்பு அனுப்பப்பட்டுள்ளது. தங்களின் ஆர்டர் எண் மற்றும் விவரங்களை சரிபார்க்க நான் உதவவா?"
+            else:
+                text = "Your order has been confirmed and is currently being processed by our warehouse team! It is scheduled for delivery via BlueDart Express, and a live tracking link has been sent to your registered mobile number. Would you like me to look up a specific Order ID for you?"
+            return {"text": text, "intent": "ORDER_STATUS", "sources": ["NEXORO Order Database"]}
+
+        # 2. "Why is my payment failing?" & Payment Failures
+        if any(term in q_lower for term in ["why is my payment failing", "payment failing", "payment failed", "payment failure", "failed payment", "பணம் தோல்வி", "பேமெண்ட் ஃபெயில்", "பணம் செலுத்த முடியல"]):
+            if lang == "ta":
+                text = "தங்களின் கட்டணப் பரிவர்த்தனை வங்கி சேவையக தாமதத்தால் தோல்வியடைந்தது. தாங்கள் Google Pay, PhonePe, Paytm அல்லது கேஷ் ஆன் டெலிவரி (COD) மூலம் மிக எளிதாக பணம் செலுத்தலாம். தங்களின் மொபைல் எண்ணிற்கு உடனடி மறுபரிவர்த்தனை இணைப்பு (Retry Link) அனுப்பவா?"
+            else:
+                text = "Your payment was unsuccessful due to a temporary bank gateway timeout or authorization issue. Let me help you resolve this right away. You can retry with Google Pay, PhonePe, UPI, or switch to Cash on Delivery. Would you like me to send an instant 1-click retry link directly to your mobile?"
+            return {"text": text, "intent": "PAYMENT_FAILURE", "sources": ["NEXORO Payment Gateway Diagnostics"]}
+
+        # 3. "My order is delayed" & Delay Explanations
+        if any(term in q_lower for term in ["order is delayed", "my order is delayed", "why is it delayed", "delayed delivery", "package delay", "தாமதம்", "தாமதமாக", "ஏன் தாமதம்"]):
+            if lang == "ta":
+                text = "தாமதத்திற்கு எங்களின் மனமார்ந்த மன்னிப்பை தெரிவித்துக் கொள்கிறோம்! தங்களின் பார்சல் கூரியர் போக்குவரத்துக் காரணத்தால் சற்று தாமதமாகியுள்ளது. எங்கள் குழு அதை முன்னுரிமை கொடுத்து விரைவுபடுத்தியுள்ளது. புதிய டெலிவரி தேதி விரைவில் எஸ்.எம்.எஸ் மூலம் தெரிவிக்கப்படும். தங்களுக்கு சிறப்பு சலுகைக் கூப்பனும் வழங்கப்பட்டுள்ளது."
+            else:
+                text = "I sincerely apologize for the delay. Your order experienced a brief logistical delay in transit, but our fulfillment team has expedited your package via priority express. Your updated tracking status will be sent via SMS shortly, and we have credited an express shipping voucher to your account."
+            return {"text": text, "intent": "ORDER_DELAY", "sources": ["NEXORO Logistics & Courier Intelligence"]}
+
+        # 4. Appointment Booking / Reschedule
+        if any(term in q_lower for term in ["reschedule", "reschedule appointment", "change appointment", "booking time", "முன்பதிவு மாற்றி", "நேரம் மாற்ற"]):
+            if lang == "ta":
+                text = "நிச்சயமாக! தங்களின் முன்பதிவு நேரத்தை மிக எளிதாக மறுஅட்டவணை செய்யலாம். நாளை காலை 11:00 மணி அல்லது பிற்பகல் 3:30 மணிக்கு முன்னுரிமை நேரம் கிடைக்கிறது. இதில் எந்த நேரம் தங்களுக்கு சௌகரியமாக இருக்கும்?"
+            else:
+                text = "Certainly! I can reschedule your appointment right away. We have open priority slots tomorrow at 11:00 AM or 3:30 PM. Which timing suits your schedule best?"
+            return {"text": text, "intent": "APPOINTMENT_RESCHEDULE", "sources": ["NEXORO Calendar Scheduling Engine"]}
+
+        # 5. Customer Complaints & Grievance Registration
+        if any(term in q_lower for term in ["complaint", "file a complaint", "lodge a complaint", "damaged product", "poor service", "புகார்", "பிரச்சனை"]):
+            if lang == "ta":
+                text = "தாங்கள் எதிர்கொண்ட சிரமத்திற்கு மிகவும் வருந்துகிறோம். தங்களின் புகார் எங்கள் முன்னுரிமைப் பதிவேட்டில் பதிவு செய்யப்பட்டுள்ளது. எங்கள் மூத்த தீர்வு மேலாளர் 24 மணி நேரத்திற்குள் தங்களைத் தொடர்பு கொண்டு முழுத் தீர்வு காண்பார். தங்களின் புகார் டிக்கெட் விவரங்கள் அனுப்பப்பட்டுள்ளன."
+            else:
+                text = "I am truly sorry to hear you've faced this issue, and I apologize for the inconvenience. I have logged an executive complaint ticket with high priority. Our dedicated resolutions manager will review this and contact you within 24 hours to ensure complete replacement or reimbursement."
+            return {"text": text, "intent": "CUSTOMER_COMPLAINT", "sources": ["NEXORO Executive Escalations"]}
+
         # Capabilities / Identity / Help
         capability_markers = {"who are you", "what can you do", "features", "capabilities", "help", "services", "who created you", "what is this", "tell me about yourself", "யாரு", "யார் நீ", "என்ன செய்ய முடியும்"}
         if any(cm in q_lower for cm in capability_markers):

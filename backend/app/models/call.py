@@ -1,6 +1,6 @@
 import uuid
 from datetime import datetime
-from sqlalchemy import Column, String, Text, Integer, Float, DateTime, ForeignKey, JSON
+from sqlalchemy import Column, String, Text, Integer, Float, Boolean, DateTime, ForeignKey, JSON
 from app.core.database import Base
 
 class Call(Base):
@@ -10,6 +10,14 @@ class Call(Base):
     company_id = Column(String(36), ForeignKey("companies.id"), nullable=True)
     customer_id = Column(String(36), ForeignKey("customers.id"), nullable=True, index=True)
     order_id = Column(String(36), nullable=True, index=True)
+    appointment_id = Column(String(36), nullable=True, index=True)
+    complaint_id = Column(String(36), nullable=True, index=True)
+    payment_id = Column(String(36), nullable=True, index=True)
+    agent_id = Column(String(36), ForeignKey("users.id"), nullable=True, index=True)
+    agent_name = Column(String(255), nullable=True)
+    category = Column(String(100), default="ORDER_CONFIRMATION", index=True)
+    call_reason = Column(String(255), nullable=True)
+    escalated_to_human = Column(Boolean, default=False)
     
     # INBOUND, OUTBOUND, OUTBOUND_ORDER_CONFIRMATION, CAMPAIGN
     direction = Column(String(50), default="INBOUND")

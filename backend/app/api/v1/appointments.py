@@ -9,6 +9,7 @@ from app.core.database import get_db
 from app.models.appointment import Appointment
 from app.models.customer import Customer
 from app.schemas.appointment import AppointmentCreate, AppointmentUpdate, AppointmentResponse, SlotCheckRequest
+from app.services.event_dispatcher import event_dispatcher
 
 router = APIRouter()
 
@@ -51,6 +52,19 @@ async def create_appointment(req: AppointmentCreate, db: AsyncSession = Depends(
     db.add(appt)
     await db.commit()
     await db.refresh(appt)
+
+    # Automated Event Detection: Trigger Appointment Confirmation AI Call
+    c_stmt = select(Customer).where(Customer.id == appt.customer_id)
+    c_res = await db.execute(c_stmt)
+    customer = c_res.scalars().first()
+    if customer:
+        await event_dispatcher.on_appointment_created(
+            appointment=appt,
+            customer=customer,
+            db=db,
+            simulate_outcome="SUCCESS"
+        )
+
     return appt
 
 @router.post("/available-slots")
@@ -100,11 +114,29 @@ async def update_appointment(appointment_id: str, req: AppointmentUpdate, db: As
     if not appt:
         raise HTTPException(status_code=404, detail="Appointment not found")
 
+    old_status = appt.status
+    old_time = appt.scheduled_time
     update_data = req.model_dump(exclude_unset=True)
     for field, val in update_data.items():
         setattr(appt, field, val)
 
     await db.commit()
     await db.refresh(appt)
+
+    # Automated Event Detection: Reschedule / Delay Call
+    time_changed = req.scheduled_time and req.scheduled_time != old_time
+    status_changed_to_rescheduled = req.status in ["RESCHEDULED", "DELAYED"] and req.status != old_status
+    if time_changed or status_changed_to_rescheduled:
+        c_stmt = select(Customer).where(Customer.id == appt.customer_id)
+        c_res = await db.execute(c_stmt)
+        customer = c_res.scalars().first()
+        if customer:
+            await event_dispatcher.on_appointment_rescheduled(
+                appointment=appt,
+                customer=customer,
+                db=db,
+                simulate_outcome="QUESTION_ANSWERED"
+            )
+
     return appt
 

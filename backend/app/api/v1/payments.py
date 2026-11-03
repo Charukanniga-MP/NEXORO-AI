@@ -76,6 +76,28 @@ async def verify_payment(
     )
     return result
 
+@router.post("/simulate-failure")
+async def simulate_payment_failure(
+    order_id: str,
+    reason: str = "Bank gateway authorization timeout",
+    customer: Customer = Depends(get_current_customer),
+    db: AsyncSession = Depends(get_db)
+):
+    stmt = select(Order).where(Order.id == order_id, Order.customer_id == customer.id)
+    res = await db.execute(stmt)
+    order = res.scalars().first()
+    if not order:
+        raise HTTPException(status_code=404, detail="Order not found for current customer")
+
+    result = await payment_service.record_failed_payment(
+        db=db,
+        order=order,
+        customer=customer,
+        payment_method=order.payment_method or "UPI",
+        error_message=reason
+    )
+    return result
+
 @router.get("/order/{order_id}")
 async def get_order_payments(
     order_id: str,

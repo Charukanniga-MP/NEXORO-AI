@@ -13,6 +13,7 @@ from app.models.payment import Payment
 from app.models.order import Order
 from app.models.customer import Customer
 from app.services.ai_calling_agent import ai_calling_agent
+from app.services.event_dispatcher import event_dispatcher
 
 logger = logging.getLogger(__name__)
 
@@ -111,13 +112,14 @@ class PaymentService:
         await db.refresh(order)
         await db.refresh(payment)
 
-        # 3. Trigger Autonomous Outbound AI Voice Calling Agent!
+        # 3. Trigger Autonomous Outbound AI Voice Calling Agent for Payment Confirmation!
         logger.info(f"Payment verified for Order {order.order_number}. Dispatching AI voice calling agent...")
-        ai_call_result = await ai_calling_agent.initiate_order_confirmation_call(
+        ai_call_result = await event_dispatcher.on_payment_success(
+            payment=payment,
             order=order,
             customer=customer,
             db=db,
-            simulate_outcome="CONFIRMED"
+            simulate_outcome="SUCCESS"
         )
 
         return {
@@ -126,6 +128,50 @@ class PaymentService:
             "order_number": order.order_number,
             "payment_status": order.payment_status,
             "order_status": order.status,
+            "ai_call": ai_call_result
+        }
+
+    async def record_failed_payment(
+        self,
+        db: AsyncSession,
+        order: Order,
+        customer: Customer,
+        payment_method: str = "UPI",
+        error_message: str = "Bank gateway authorization timeout"
+    ) -> Dict[str, Any]:
+        """
+        Records a failed payment attempt and automatically dispatches an AI support call
+        explaining the issue and offering 1-click retry.
+        """
+        txn_id = await self.generate_transaction_id(db)
+        payment = Payment(
+            order_id=order.id,
+            customer_id=customer.id,
+            transaction_id=txn_id,
+            amount=order.total_amount,
+            currency="INR",
+            payment_method=payment_method,
+            status="FAILED",
+            gateway_name="RAZORPAY",
+            error_message=error_message,
+            receipt_number=f"FAIL-{order.order_number}"
+        )
+        db.add(payment)
+        order.payment_status = "FAILED"
+        await db.commit()
+        await db.refresh(payment)
+
+        ai_call_result = await event_dispatcher.on_payment_failed(
+            payment=payment,
+            order=order,
+            customer=customer,
+            db=db,
+            simulate_outcome="QUESTION_ANSWERED"
+        )
+        return {
+            "success": False,
+            "transaction_id": txn_id,
+            "error_message": error_message,
             "ai_call": ai_call_result
         }
 

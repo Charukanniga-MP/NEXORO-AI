@@ -9,6 +9,7 @@ import {
   TrendingUp,
   Headphones,
   CheckCircle2,
+  XCircle,
   AlertTriangle,
   ArrowRight,
   Server,
@@ -20,7 +21,11 @@ import {
   CreditCard,
   PhoneCall,
   IndianRupee,
-  ShoppingBag
+  ShoppingBag,
+  Calendar,
+  ThumbsUp,
+  MessageSquare,
+  UserCheck
 } from 'lucide-react';
 import { api, DashboardKPIs, CallRecord } from '../services/api';
 import { useAuth } from '../context/AuthContext';
@@ -361,6 +366,129 @@ export const DashboardView: React.FC<DashboardViewProps> = ({ onNavigate }) => {
             <span className="text-[10px] font-medium text-amber-500">/ 5.0 ⭐</span>
           </div>
           <p className="text-[10px] text-slate-400 mt-1">Sentiment verified</p>
+        </div>
+      </div>
+
+      {/* AI Agents Team Roster & Support Categories Banner */}
+      <div className="bg-slate-900 text-white p-6 rounded-3xl border border-slate-800 shadow-sm">
+        <div className="flex flex-col md:flex-row md:items-center justify-between pb-4 border-b border-slate-800 gap-2 mb-4">
+          <div>
+            <div className="flex items-center space-x-2">
+              <span className="px-2 py-0.5 rounded-full text-[10px] font-black uppercase bg-blue-500/20 text-blue-400 border border-blue-500/30">
+                Agent Desk Roster
+              </span>
+              <span className="text-xs text-slate-400">• Total AI Agents: {kpis?.total_ai_agents ?? 4} Active</span>
+            </div>
+            <h2 className="text-lg font-black tracking-tight mt-1 text-white flex items-center space-x-2">
+              <Headphones className="w-5 h-5 text-blue-400" />
+              <span>AI Agent Performance & Category Specialization</span>
+            </h2>
+          </div>
+          <button
+            onClick={() => onNavigate('ai-calling')}
+            className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white font-bold rounded-xl text-xs flex items-center space-x-2 self-start cursor-pointer transition-all"
+          >
+            <span>Open AI Calling Portal</span>
+            <ArrowRight className="w-3.5 h-3.5" />
+          </button>
+        </div>
+
+        {/* 4 Specialized AI Agents Cards */}
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+          <div className="bg-slate-800/80 p-4 rounded-2xl border border-slate-700/60">
+            <div className="flex items-center justify-between">
+              <span className="text-[10px] font-mono font-bold bg-slate-700 px-2 py-0.5 rounded text-slate-300">Ext 102</span>
+              <span className="text-[10px] font-bold text-emerald-400 bg-emerald-500/10 px-2 py-0.5 rounded-full">AVAILABLE</span>
+            </div>
+            <h3 className="font-bold text-sm text-white mt-2">Sarah Jenkins</h3>
+            <p className="text-xs text-blue-300 font-medium">Order Fulfillment Specialist</p>
+            <p className="text-[11px] text-slate-400 mt-1">Specialty: Order Confirmations & Delays</p>
+            <div className="mt-3 pt-2 border-t border-slate-700/60 flex items-center justify-between text-[11px] text-slate-400">
+              <span>English / Hindi</span>
+              <span className="text-amber-400 font-bold">★ 4.9 CSAT</span>
+            </div>
+          </div>
+
+          <div className="bg-slate-800/80 p-4 rounded-2xl border border-slate-700/60">
+            <div className="flex items-center justify-between">
+              <span className="text-[10px] font-mono font-bold bg-slate-700 px-2 py-0.5 rounded text-slate-300">Ext 103</span>
+              <span className="text-[10px] font-bold text-emerald-400 bg-emerald-500/10 px-2 py-0.5 rounded-full">AVAILABLE</span>
+            </div>
+            <h3 className="font-bold text-sm text-white mt-2">Karthik Rajan</h3>
+            <p className="text-xs text-blue-300 font-medium">Tamil Voice Operations</p>
+            <p className="text-[11px] text-slate-400 mt-1">Specialty: Regional Tamil (தமிழ்) Calls</p>
+            <div className="mt-3 pt-2 border-t border-slate-700/60 flex items-center justify-between text-[11px] text-slate-400">
+              <span>Tamil / English</span>
+              <span className="text-amber-400 font-bold">★ 5.0 CSAT</span>
+            </div>
+          </div>
+
+          <div className="bg-slate-800/80 p-4 rounded-2xl border border-slate-700/60">
+            <div className="flex items-center justify-between">
+              <span className="text-[10px] font-mono font-bold bg-slate-700 px-2 py-0.5 rounded text-slate-300">Ext 104</span>
+              <span className="text-[10px] font-bold text-emerald-400 bg-emerald-500/10 px-2 py-0.5 rounded-full">AVAILABLE</span>
+            </div>
+            <h3 className="font-bold text-sm text-white mt-2">Priya Sharma</h3>
+            <p className="text-xs text-blue-300 font-medium">Billing & Payments Specialist</p>
+            <p className="text-[11px] text-slate-400 mt-1">Specialty: Payment Confirmations & Failures</p>
+            <div className="mt-3 pt-2 border-t border-slate-700/60 flex items-center justify-between text-[11px] text-slate-400">
+              <span>UPI / Gateway</span>
+              <span className="text-amber-400 font-bold">★ 4.8 CSAT</span>
+            </div>
+          </div>
+
+          <div className="bg-slate-800/80 p-4 rounded-2xl border border-slate-700/60">
+            <div className="flex items-center justify-between">
+              <span className="text-[10px] font-mono font-bold bg-slate-700 px-2 py-0.5 rounded text-slate-300">Ext 105</span>
+              <span className="text-[10px] font-bold text-emerald-400 bg-emerald-500/10 px-2 py-0.5 rounded-full">AVAILABLE</span>
+            </div>
+            <h3 className="font-bold text-sm text-white mt-2">Vikram Malhotra</h3>
+            <p className="text-xs text-blue-300 font-medium">Executive Escalations Manager</p>
+            <p className="text-[11px] text-slate-400 mt-1">Specialty: Complaints & Priority Resolutions</p>
+            <div className="mt-3 pt-2 border-t border-slate-700/60 flex items-center justify-between text-[11px] text-slate-400">
+              <span>24h Resolution</span>
+              <span className="text-amber-400 font-bold">★ 4.9 CSAT</span>
+            </div>
+          </div>
+        </div>
+
+        {/* 8 Customer Support Categories Breakdown Grid */}
+        <div className="mt-5 pt-4 border-t border-slate-800">
+          <p className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-2">Automated Support Event Statistics</p>
+          <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-8 gap-2 text-center text-xs">
+            <div className="bg-slate-800/60 p-2.5 rounded-xl border border-slate-700/40">
+              <p className="text-[10px] text-slate-400">Orders</p>
+              <p className="font-black text-white text-base mt-0.5">{kpis?.total_orders ?? 0}</p>
+            </div>
+            <div className="bg-slate-800/60 p-2.5 rounded-xl border border-slate-700/40">
+              <p className="text-[10px] text-emerald-400">Paid Orders</p>
+              <p className="font-black text-emerald-400 text-base mt-0.5">{kpis?.successful_payments ?? 0}</p>
+            </div>
+            <div className="bg-slate-800/60 p-2.5 rounded-xl border border-slate-700/40">
+              <p className="text-[10px] text-rose-400">Failed Payments</p>
+              <p className="font-black text-rose-400 text-base mt-0.5">{kpis?.failed_payments ?? 0}</p>
+            </div>
+            <div className="bg-slate-800/60 p-2.5 rounded-xl border border-slate-700/40">
+              <p className="text-[10px] text-amber-400">Order Delays</p>
+              <p className="font-black text-amber-400 text-base mt-0.5">{kpis?.cancelled_orders ?? 0}</p>
+            </div>
+            <div className="bg-slate-800/60 p-2.5 rounded-xl border border-slate-700/40">
+              <p className="text-[10px] text-indigo-400">Appts Total</p>
+              <p className="font-black text-indigo-400 text-base mt-0.5">{kpis?.total_appointments ?? 0}</p>
+            </div>
+            <div className="bg-slate-800/60 p-2.5 rounded-xl border border-slate-700/40">
+              <p className="text-[10px] text-teal-400">Appts Confirmed</p>
+              <p className="font-black text-teal-400 text-base mt-0.5">{kpis?.confirmed_appointments ?? 0}</p>
+            </div>
+            <div className="bg-slate-800/60 p-2.5 rounded-xl border border-slate-700/40">
+              <p className="text-[10px] text-orange-400">Complaints</p>
+              <p className="font-black text-orange-400 text-base mt-0.5">{kpis?.customer_complaints ?? 0}</p>
+            </div>
+            <div className="bg-slate-800/60 p-2.5 rounded-xl border border-slate-700/40">
+              <p className="text-[10px] text-sky-400">Feedback Calls</p>
+              <p className="font-black text-sky-400 text-base mt-0.5">{kpis?.customer_feedback ?? 0}</p>
+            </div>
+          </div>
         </div>
       </div>
 

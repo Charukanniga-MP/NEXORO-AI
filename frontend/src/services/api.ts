@@ -93,6 +93,18 @@ export interface DashboardKPIs {
   ai_calls_completed?: number;
   ai_calls_pending?: number;
   ai_calls_failed?: number;
+  total_ai_agents?: number;
+  total_customer_calls?: number;
+  successful_calls?: number;
+  failed_calls?: number;
+  pending_calls?: number;
+  failed_payments?: number;
+  customer_complaints?: number;
+  customer_feedback?: number;
+  total_appointments?: number;
+  confirmed_appointments?: number;
+  scheduled_appointments?: number;
+  cancelled_appointments?: number;
 }
 
 export interface Category {
@@ -180,11 +192,15 @@ export interface Order {
 
 export interface AICallLog {
   id: string;
+  category?: string;
+  category_display?: string;
   order_id?: string;
   order_number?: string;
   customer_id?: string;
   customer_code?: string;
   customer_name?: string;
+  agent_id?: string;
+  agent_name?: string;
   phone_number: string;
   preferred_language: string;
   call_initiation_time: string;
@@ -192,9 +208,10 @@ export interface AICallLog {
   call_status: string;
   confirmation_status?: string;
   summary?: string;
-  transcript: Array<{ speaker: string; text: string; timestamp: string; language?: string }>;
+  transcript: Array<{ speaker: string; agent_name?: string; text: string; timestamp: string; language?: string }>;
   recording_url?: string;
   retry_count: number;
+  escalated_to_human?: boolean;
 }
 
 export interface AICallingStats {
@@ -204,8 +221,27 @@ export interface AICallingStats {
   cancelled_orders: number;
   unanswered_calls: number;
   failed_calls: number;
+  pending_calls?: number;
+  escalated_calls?: number;
   avg_duration_seconds: number;
+  categories?: Record<string, number>;
   language_distribution: Record<string, number>;
+  active_agents_count?: number;
+}
+
+export interface AIAgentProfile {
+  id: string;
+  username?: string;
+  full_name: string;
+  email: string;
+  phone?: string;
+  extension?: string;
+  department?: string;
+  status: 'AVAILABLE' | 'BUSY' | 'ON_CALL' | 'OFFLINE';
+  calls_handled: number;
+  csat_rating: number;
+  languages: string[];
+  avatar_url?: string;
 }
 
 export interface CallRecord {
@@ -428,10 +464,28 @@ export const api = {
   }) => apiClient.post('/payments/verify', data),
 
   // AI Outbound Voice Calling Management
-  getAICallLogs: (params?: { status?: string; language?: string; search?: string }) =>
+  getAICallLogs: (params?: { category?: string; status?: string; language?: string; search?: string; limit?: number; offset?: number }) =>
     apiClient.get<AICallLog[]>('/ai-calling/logs', { params }),
   retryAICall: (callId: string) => apiClient.post(`/ai-calling/retry/${callId}`),
   getAICallingStats: () => apiClient.get<AICallingStats>('/ai-calling/stats'),
+  triggerAICall: (data: {
+    category: string;
+    customer_id?: string;
+    phone_number?: string;
+    order_id?: string;
+    appointment_id?: string;
+    complaint_id?: string;
+    language?: string;
+    simulate_outcome?: string;
+    bypass_duplicate_check?: boolean;
+  }) => apiClient.post('/ai-calling/trigger', data),
+  escalateAICall: (callId: string, reason?: string) =>
+    apiClient.post(`/ai-calling/escalate/${callId}`, null, { params: { reason } }),
+  getAIAgents: () => apiClient.get<AIAgentProfile[]>('/ai-calling/agents'),
+  updateAgentPresence: (agentId: string, status: string) =>
+    apiClient.put(`/ai-calling/agents/${agentId}/status`, { status }),
+  assignAgentToCall: (callId: string, agentId: string) =>
+    apiClient.post('/ai-calling/assign-agent', { call_id: callId, agent_id: agentId }),
   triggerAIOrderCall: (orderId: string, outcome: string = 'CONFIRMED') =>
     apiClient.post(`/orders/${orderId}/trigger-ai-call`, null, { params: { outcome } }),
 

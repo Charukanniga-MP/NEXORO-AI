@@ -30,6 +30,20 @@ class DashboardKPIs(BaseModel):
     ai_calls_pending: int = 0
     ai_calls_failed: int = 0
 
+    # Extended AI Support & Operations Telemetry
+    total_ai_agents: int = 4
+    total_customer_calls: int = 0
+    successful_calls: int = 0
+    failed_calls: int = 0
+    pending_calls: int = 0
+    failed_payments: int = 0
+    customer_complaints: int = 0
+    customer_feedback: int = 0
+    total_appointments: int = 0
+    confirmed_appointments: int = 0
+    scheduled_appointments: int = 0
+    cancelled_appointments: int = 0
+
 class LanguageDistribution(BaseModel):
     language: str
     code: str

@@ -7,7 +7,9 @@ from sqlalchemy import select, desc
 
 from app.core.database import get_db
 from app.models.complaint import Complaint
+from app.models.customer import Customer
 from app.schemas.complaint import ComplaintCreate, ComplaintUpdate, ComplaintResponse
+from app.services.event_dispatcher import event_dispatcher
 
 router = APIRouter()
 
@@ -48,6 +50,19 @@ async def create_complaint(req: ComplaintCreate, db: AsyncSession = Depends(get_
     db.add(complaint)
     await db.commit()
     await db.refresh(complaint)
+
+    # Automated Event Detection: Customer Complaint Registration Call
+    c_stmt = select(Customer).where(Customer.id == complaint.customer_id)
+    c_res = await db.execute(c_stmt)
+    customer = c_res.scalars().first()
+    if customer:
+        await event_dispatcher.on_complaint_created(
+            complaint=complaint,
+            customer=customer,
+            db=db,
+            simulate_outcome="QUESTION_ANSWERED"
+        )
+
     return complaint
 
 @router.put("/{complaint_id}", response_model=ComplaintResponse)
