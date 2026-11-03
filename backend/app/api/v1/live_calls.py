@@ -5,7 +5,7 @@ import logging
 from typing import Optional, Dict, Any, List
 from fastapi import APIRouter, Depends, WebSocket, WebSocketDisconnect, HTTPException, Body, UploadFile, File, Request, Query
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select
+from sqlalchemy import select, func
 from datetime import datetime
 from pydantic import BaseModel
 
@@ -373,6 +373,167 @@ async def reject_call_request(
     await call_signaling.notify_call_rejected(call_id, reason)
     return {"status": "REJECTED", "call_id": call_id, "reason": reason}
 
+
+class TransferCallRequest(BaseModel):
+    reason: str
+    department: Optional[str] = "Customer Support"
+    target_agent_id: Optional[str] = None
+    summary: Optional[str] = None
+    priority: Optional[str] = "HIGH"
+
+@router.post("/{call_id}/transfer")
+async def transfer_call_to_human(
+    call_id: str,
+    req: TransferCallRequest,
+    db: AsyncSession = Depends(get_db)
+):
+    """
+    Transfers an active call to a human specialist department or staff agent.
+    Creates an official HandoffTicket, updates Call status, and alerts all agent consoles.
+    """
+    stmt = select(Call).where(Call.id == call_id)
+    res = await db.execute(stmt)
+    call = res.scalars().first()
+    if not call:
+        raise HTTPException(status_code=404, detail="Call record not found")
+
+    target_user_id = req.target_agent_id
+    specialist_name = "Human Specialist"
+    if target_user_id:
+        u_stmt = select(User).where(User.id == target_user_id)
+        u_res = await db.execute(u_stmt)
+        u = u_res.scalars().first()
+        if u:
+            specialist_name = u.full_name
+    else:
+        spec_stmt = select(User).where(
+            User.role.in_(["AGENT", "ADMIN"]),
+            User.status == "AVAILABLE"
+        )
+        spec_res = await db.execute(spec_stmt)
+        spec_user = spec_res.scalars().first()
+        if spec_user:
+            target_user_id = spec_user.id
+            specialist_name = spec_user.full_name
+
+    summary_text = req.summary or f"Call escalated: {req.reason}. Caller: {call.caller_number}"
+    ticket = await human_handoff_service.create_handoff_request(
+        db=db,
+        call_id=call_id,
+        reason=req.reason,
+        ai_summary=summary_text,
+        context_notes={
+            "transferred_by": "Agent Console",
+            "department": req.department,
+            "target_user_id": target_user_id,
+            "priority": req.priority,
+            "language": call.language or "en"
+        },
+        target_department=req.department or "Customer Support"
+    )
+
+    call.status = "TRANSFERRED"
+    call.outcome = "HANDOFF_TO_HUMAN"
+    call.transferred_to_user_id = target_user_id
+    await db.commit()
+    await db.refresh(call)
+
+    transfer_turn = {
+        "speaker": "system",
+        "text": f"Call escalated to {req.department or 'Customer Support'} ({specialist_name}). Ticket: ESC-{ticket.id[:8].upper()}",
+        "timestamp": datetime.utcnow().isoformat(),
+        "ticket_id": ticket.id
+    }
+    await call_signaling.notify_transcript_turn(call_id, transfer_turn)
+
+    return {
+        "success": True,
+        "status": "TRANSFERRED",
+        "ticket_id": ticket.id,
+        "ticket_number": f"ESC-{ticket.id[:8].upper()}",
+        "specialist_name": specialist_name,
+        "target_department": req.department,
+        "message": f"Call successfully transferred to {specialist_name} in {req.department}."
+    }
+
+class ChangeLanguageRequest(BaseModel):
+    language: str
+
+@router.post("/{call_id}/change-language")
+async def change_call_language(
+    call_id: str,
+    req: ChangeLanguageRequest,
+    db: AsyncSession = Depends(get_db)
+):
+    stmt = select(Call).where(Call.id == call_id)
+    res = await db.execute(stmt)
+    call = res.scalars().first()
+    if not call:
+        raise HTTPException(status_code=404, detail="Call not found")
+
+    call.language = req.language
+    if req.language not in (call.detected_languages or []):
+        call.detected_languages = (call.detected_languages or []) + [req.language]
+    await db.commit()
+
+    lang_names = {
+        "en": "English",
+        "ta": "Tamil (தமிழ்)",
+        "hi": "Hindi (हिन्दी)",
+        "te": "Telugu (తెలుగు)",
+        "ml": "Malayalam (മലയാളം)"
+    }
+    chosen_name = lang_names.get(req.language, req.language.upper())
+    turn = {
+        "speaker": "system",
+        "text": f"Conversation language updated to {chosen_name}.",
+        "language": req.language,
+        "timestamp": datetime.utcnow().isoformat()
+    }
+    await call_signaling.notify_transcript_turn(call_id, turn)
+    return {"success": True, "language": req.language, "language_name": chosen_name}
+
+@router.get("/console-stats")
+async def get_console_stats(db: AsyncSession = Depends(get_db)):
+    """
+    Computes live dashboard statistics for the Agent Operator Console:
+    - Calls Today
+    - Waiting Calls
+    - Active Calls
+    - Avg Duration (seconds)
+    """
+    today_start = datetime.utcnow().replace(hour=0, minute=0, second=0, microsecond=0)
+
+    # 1. Calls today
+    c_today_stmt = select(func.count(Call.id)).where(Call.start_time >= today_start)
+    c_today_res = await db.execute(c_today_stmt)
+    calls_today = c_today_res.scalar() or 0
+
+    # 2. Active calls
+    active_stmt = select(func.count(Call.id)).where(Call.status == "IN_PROGRESS")
+    active_res = await db.execute(active_stmt)
+    active_calls = active_res.scalar() or 0
+
+    # 3. Waiting calls in queue
+    waiting_calls = len(call_signaling.get_pending_calls())
+
+    # 4. Avg duration of completed calls today
+    avg_stmt = select(func.avg(Call.duration_seconds)).where(
+        Call.start_time >= today_start,
+        Call.duration_seconds.isnot(None),
+        Call.duration_seconds > 0
+    )
+    avg_res = await db.execute(avg_stmt)
+    avg_dur = avg_res.scalar() or 0.0
+
+    return {
+        "calls_today": calls_today,
+        "waiting_calls": waiting_calls,
+        "active_calls": active_calls,
+        "avg_duration_seconds": round(float(avg_dur), 1)
+    }
+
+
 @router.post("/upload-images")
 async def upload_images(
     files: List[UploadFile] = File(...)
@@ -695,6 +856,15 @@ async def call_websocket_endpoint(websocket: WebSocket, call_id: str):
             elif event == "user_message":
                 text = data.get("text", "")
                 lang = data.get("language", "auto")
+
+                # 1. Immediately notify Agent Console of customer speech
+                await call_signaling.notify_transcript_turn(call_id, {
+                    "speaker": "customer",
+                    "text": text,
+                    "user_query": text,
+                    "language": lang if lang != "auto" else "en",
+                    "timestamp": datetime.utcnow().isoformat()
+                })
 
                 async with AsyncSessionLocal() as session:
                     result = await orchestrator.process_user_turn(

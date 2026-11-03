@@ -200,7 +200,9 @@ export interface AICallingStats {
 
 export interface CallRecord {
   id: string;
+  caller_name?: string;
   caller_number: string;
+  start_time?: string;
   receiver_number: string;
   direction: 'INBOUND' | 'OUTBOUND';
   status: string;
@@ -222,6 +224,8 @@ export interface Customer {
   customer_code?: string;
   phone: string;
   name: string;
+  avatar_url?: string;
+  wallet_balance?: number;
   email?: string;
   address_line1?: string;
   city?: string;
@@ -463,6 +467,12 @@ export const api = {
     apiClient.post('/live-calls/agent-speak', { call_id, text, language }),
   getPendingCallRequests: () =>
     apiClient.get<any[]>('/live-calls/pending-requests'),
+  getConsoleStats: () =>
+    apiClient.get<{ calls_today: number; waiting_calls: number; active_calls: number; avg_duration_seconds: number }>('/live-calls/console-stats'),
+  transferCall: (callId: string, data: { reason: string; department?: string; target_agent_id?: string; summary?: string; priority?: string }) =>
+    apiClient.post(`/live-calls/${callId}/transfer`, data),
+  changeCallLanguage: (callId: string, language: string) =>
+    apiClient.post(`/live-calls/${callId}/change-language`, { language }),
   endCall: (callId: string, outcome?: string) => apiClient.post('/live-calls/end', null, { params: { call_id: callId, outcome } }),
   bargeIn: (callId: string) => apiClient.post('/live-calls/barge-in', null, { params: { call_id: callId } }),
   sendTurn: (callId: string | null, text: string, language?: string, imageUrls?: string[]) =>
