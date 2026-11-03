@@ -1,16 +1,16 @@
 import React, { useState, useEffect } from 'react';
-import { 
-  Search, 
-  Filter, 
-  Star, 
-  ShoppingBag, 
-  Truck, 
-  ShieldCheck, 
-  Sparkles, 
-  ArrowUpDown, 
-  ChevronRight, 
-  Eye, 
-  Check, 
+import {
+  Search,
+  Filter,
+  Star,
+  ShoppingBag,
+  Truck,
+  ShieldCheck,
+  Sparkles,
+  ArrowUpDown,
+  ChevronRight,
+  Eye,
+  Check,
   X,
   PhoneCall,
   Flame,
@@ -31,7 +31,7 @@ import { CustomerOrdersView } from './CustomerOrdersView';
 
 export const CustomerStoreView: React.FC = () => {
   const { customer, customerToken, cartCount, setCartCount } = useAuth();
-  
+
   // Data States
   const [categories, setCategories] = useState<Category[]>([]);
   const [products, setProducts] = useState<Product[]>([]);
@@ -80,7 +80,7 @@ export const CustomerStoreView: React.FC = () => {
             const cartRes = await api.getCart();
             setCart(cartRes.data);
             setCartCount(cartRes.data.items_count);
-          } catch {}
+          } catch { }
         }
       } catch (err) {
         console.error("Failed to load store data", err);

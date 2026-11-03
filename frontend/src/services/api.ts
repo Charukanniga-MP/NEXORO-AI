@@ -357,10 +357,10 @@ export const api = {
     pincode?: string;
     preferred_language?: string;
   }) => apiClient.post<{ access_token: string; token_type: string; customer: CustomerProfile }>('/customer/auth/register', data),
-  
+
   customerLogin: (data: { identifier: string; password: string }) =>
     apiClient.post<{ access_token: string; token_type: string; customer: CustomerProfile }>('/customer/auth/login', data),
-    
+
   customerGetMe: () => apiClient.get<CustomerProfile>('/customer/auth/me'),
   customerUpdateProfile: (data: Partial<CustomerProfile>) => apiClient.put<CustomerProfile>('/customer/auth/profile', data),
 

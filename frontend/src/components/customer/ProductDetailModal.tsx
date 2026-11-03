@@ -184,7 +184,7 @@ export const ProductDetailModal: React.FC<ProductDetailModalProps> = ({
     setQuantity(1);
     setSelectedVariant(variants.length > 0 ? variants[0] : null);
     setSelectedColor(availableColors.length > 0 ? availableColors[0].name : '');
-    
+
     // Load reviews from product specifications or backend
     const rawRevs = product.specifications?.customer_reviews;
     if (Array.isArray(rawRevs) && rawRevs.length > 0) {
@@ -438,7 +438,7 @@ export const ProductDetailModal: React.FC<ProductDetailModalProps> = ({
   return (
     <div className="fixed inset-0 z-50 overflow-y-auto bg-slate-900/70 backdrop-blur-sm flex items-center justify-center p-2 sm:p-4 md:p-6 animate-in fade-in duration-200">
       <div className="bg-white w-full max-w-5xl rounded-3xl shadow-2xl overflow-hidden border border-slate-200/80 my-auto flex flex-col max-h-[92vh]">
-        
+
         {/* HEADER BAR */}
         <div className="px-6 py-4 border-b border-slate-100 flex items-center justify-between bg-slate-50/70 shrink-0">
           <div className="flex items-center space-x-2.5">
@@ -453,9 +453,8 @@ export const ProductDetailModal: React.FC<ProductDetailModalProps> = ({
           <div className="flex items-center space-x-2">
             <button
               onClick={() => setIsWishlisted(!isWishlisted)}
-              className={`p-2 rounded-xl transition-all cursor-pointer ${
-                isWishlisted ? 'bg-rose-50 text-rose-600' : 'hover:bg-slate-200/70 text-slate-500'
-              }`}
+              className={`p-2 rounded-xl transition-all cursor-pointer ${isWishlisted ? 'bg-rose-50 text-rose-600' : 'hover:bg-slate-200/70 text-slate-500'
+                }`}
               title={isWishlisted ? 'Remove from Wishlist' : 'Add to Wishlist'}
             >
               <Heart className={`w-5 h-5 ${isWishlisted ? 'fill-current' : ''}`} />
@@ -483,14 +482,14 @@ export const ProductDetailModal: React.FC<ProductDetailModalProps> = ({
 
         {/* SCROLLABLE CONTENT BODY */}
         <div className="p-4 sm:p-6 md:p-8 overflow-y-auto space-y-8 flex-1">
-          
+
           {/* MAIN PRODUCT GRID (Images + Core Buy Box) */}
           <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
-            
+
             {/* 1. PRODUCT IMAGES SECTION (5 Columns) */}
             <div className="lg:col-span-5 space-y-4">
               {/* Main Image with Zoom Lens */}
-              <div 
+              <div
                 className="relative aspect-square rounded-2xl overflow-hidden bg-slate-50 border border-slate-200/80 shadow-inner group cursor-crosshair select-none"
                 onMouseEnter={() => setIsHoveringImage(true)}
                 onMouseLeave={() => setIsHoveringImage(false)}
@@ -573,11 +572,10 @@ export const ProductDetailModal: React.FC<ProductDetailModalProps> = ({
                     <button
                       key={idx}
                       onClick={() => setActiveImageIndex(idx)}
-                      className={`relative w-16 h-16 rounded-xl overflow-hidden border-2 shrink-0 transition-all cursor-pointer bg-slate-50 ${
-                        activeImageIndex === idx
+                      className={`relative w-16 h-16 rounded-xl overflow-hidden border-2 shrink-0 transition-all cursor-pointer bg-slate-50 ${activeImageIndex === idx
                           ? 'border-blue-600 ring-2 ring-blue-500/20 shadow-md scale-102'
                           : 'border-slate-200 hover:border-slate-300 opacity-70 hover:opacity-100'
-                      }`}
+                        }`}
                     >
                       <img src={img} alt={`View ${idx + 1}`} className="w-full h-full object-contain p-1" />
                     </button>
@@ -599,7 +597,7 @@ export const ProductDetailModal: React.FC<ProductDetailModalProps> = ({
 
             {/* 2. RIGHT DETAILS & ACTION PANEL (7 Columns) */}
             <div className="lg:col-span-7 space-y-5">
-              
+
               {/* Product Name, Brand & Model Number */}
               <div className="space-y-1.5">
                 <div className="flex items-center space-x-2 flex-wrap gap-y-1">
@@ -630,9 +628,8 @@ export const ProductDetailModal: React.FC<ProductDetailModalProps> = ({
                       {[...Array(5)].map((_, i) => (
                         <Star
                           key={i}
-                          className={`w-3.5 h-3.5 ${
-                            i < Math.floor(product.rating || 4.5) ? 'fill-current' : 'text-slate-200'
-                          }`}
+                          className={`w-3.5 h-3.5 ${i < Math.floor(product.rating || 4.5) ? 'fill-current' : 'text-slate-200'
+                            }`}
                         />
                       ))}
                     </div>
@@ -721,11 +718,10 @@ export const ProductDetailModal: React.FC<ProductDetailModalProps> = ({
                       <button
                         key={v.value}
                         onClick={() => handleSelectVariant(v)}
-                        className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer ${
-                          selectedVariant?.value === v.value
+                        className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer ${selectedVariant?.value === v.value
                             ? 'bg-blue-600 text-white shadow-sm shadow-blue-500/20'
                             : 'bg-slate-100 hover:bg-slate-200 text-slate-700'
-                        }`}
+                          }`}
                       >
                         <span>{v.name}</span>
                         {v.price !== basePrice && (
@@ -751,11 +747,10 @@ export const ProductDetailModal: React.FC<ProductDetailModalProps> = ({
                       <button
                         key={c.name}
                         onClick={() => setSelectedColor(c.name)}
-                        className={`group relative p-1 rounded-full border-2 transition-all cursor-pointer ${
-                          selectedColor === c.name
+                        className={`group relative p-1 rounded-full border-2 transition-all cursor-pointer ${selectedColor === c.name
                             ? 'border-blue-600 scale-110 shadow-sm'
                             : 'border-transparent hover:scale-105'
-                        }`}
+                          }`}
                         title={c.name}
                       >
                         <span
@@ -896,41 +891,37 @@ export const ProductDetailModal: React.FC<ProductDetailModalProps> = ({
             <div className="flex items-center space-x-2 border-b border-slate-200 pb-2 text-xs font-bold overflow-x-auto">
               <button
                 onClick={() => setActiveTab('overview')}
-                className={`px-4 py-2 rounded-xl transition-all cursor-pointer whitespace-nowrap ${
-                  activeTab === 'overview'
+                className={`px-4 py-2 rounded-xl transition-all cursor-pointer whitespace-nowrap ${activeTab === 'overview'
                     ? 'bg-blue-600 text-white shadow-xs'
                     : 'text-slate-600 hover:bg-slate-100'
-                }`}
+                  }`}
               >
                 Product Overview & Description
               </button>
               <button
                 onClick={() => setActiveTab('specifications')}
-                className={`px-4 py-2 rounded-xl transition-all cursor-pointer whitespace-nowrap ${
-                  activeTab === 'specifications'
+                className={`px-4 py-2 rounded-xl transition-all cursor-pointer whitespace-nowrap ${activeTab === 'specifications'
                     ? 'bg-blue-600 text-white shadow-xs'
                     : 'text-slate-600 hover:bg-slate-100'
-                }`}
+                  }`}
               >
                 Category Specifications ({technicalSpecs.length})
               </button>
               <button
                 onClick={() => setActiveTab('reviews')}
-                className={`px-4 py-2 rounded-xl transition-all cursor-pointer whitespace-nowrap ${
-                  activeTab === 'reviews'
+                className={`px-4 py-2 rounded-xl transition-all cursor-pointer whitespace-nowrap ${activeTab === 'reviews'
                     ? 'bg-blue-600 text-white shadow-xs'
                     : 'text-slate-600 hover:bg-slate-100'
-                }`}
+                  }`}
               >
                 Customer Reviews ({reviews.length})
               </button>
               <button
                 onClick={() => setActiveTab('ai_assistant')}
-                className={`px-4 py-2 rounded-xl transition-all cursor-pointer whitespace-nowrap flex items-center space-x-1.5 ${
-                  activeTab === 'ai_assistant'
+                className={`px-4 py-2 rounded-xl transition-all cursor-pointer whitespace-nowrap flex items-center space-x-1.5 ${activeTab === 'ai_assistant'
                     ? 'bg-indigo-600 text-white shadow-xs'
                     : 'text-indigo-700 bg-indigo-50 hover:bg-indigo-100 border border-indigo-200'
-                }`}
+                  }`}
               >
                 <Bot className="w-3.5 h-3.5" />
                 <span>Ask AI About This Product</span>
@@ -988,14 +979,13 @@ export const ProductDetailModal: React.FC<ProductDetailModalProps> = ({
                     Category: {product.category}
                   </span>
                 </div>
-                
+
                 <div className="bg-white rounded-2xl border border-slate-200 overflow-hidden shadow-xs divide-y divide-slate-100 text-xs">
                   {technicalSpecs.map((item, idx) => (
                     <div
                       key={item.key}
-                      className={`grid grid-cols-1 sm:grid-cols-3 p-3 gap-1 ${
-                        idx % 2 === 0 ? 'bg-slate-50/50' : 'bg-white'
-                      }`}
+                      className={`grid grid-cols-1 sm:grid-cols-3 p-3 gap-1 ${idx % 2 === 0 ? 'bg-slate-50/50' : 'bg-white'
+                        }`}
                     >
                       <span className="font-bold text-slate-700 sm:col-span-1">{item.key}</span>
                       <span className="text-slate-600 sm:col-span-2 font-medium">{item.value}</span>
@@ -1008,7 +998,7 @@ export const ProductDetailModal: React.FC<ProductDetailModalProps> = ({
             {/* TAB 3: CUSTOMER REVIEWS */}
             {activeTab === 'reviews' && (
               <div className="space-y-6 animate-in fade-in duration-150">
-                
+
                 {/* Rating summary bar */}
                 <div className="grid grid-cols-1 md:grid-cols-12 gap-6 items-center p-4 rounded-2xl bg-slate-50 border border-slate-200/80">
                   <div className="md:col-span-4 text-center md:text-left space-y-1">
@@ -1162,11 +1152,10 @@ export const ProductDetailModal: React.FC<ProductDetailModalProps> = ({
                       <div className="pt-1 flex items-center space-x-2 text-[11px] text-slate-500">
                         <button
                           onClick={() => handleHelpfulVote(r.id)}
-                          className={`flex items-center space-x-1 px-2.5 py-1 rounded-lg border transition-colors cursor-pointer ${
-                            r.userVoted
+                          className={`flex items-center space-x-1 px-2.5 py-1 rounded-lg border transition-colors cursor-pointer ${r.userVoted
                               ? 'bg-blue-50 border-blue-200 text-blue-700 font-bold'
                               : 'border-slate-200 hover:bg-slate-50 text-slate-600'
-                          }`}
+                            }`}
                         >
                           <ThumbsUp className="w-3 h-3" />
                           <span>Helpful ({r.helpfulCount || 0})</span>
@@ -1208,11 +1197,10 @@ export const ProductDetailModal: React.FC<ProductDetailModalProps> = ({
 
                     <button
                       onClick={() => setAiVoiceEnabled(!aiVoiceEnabled)}
-                      className={`p-2 rounded-xl border transition-colors cursor-pointer ${
-                        aiVoiceEnabled
+                      className={`p-2 rounded-xl border transition-colors cursor-pointer ${aiVoiceEnabled
                           ? 'bg-indigo-600 text-white border-indigo-600'
                           : 'bg-white text-slate-500 border-slate-300'
-                      }`}
+                        }`}
                       title={aiVoiceEnabled ? 'Voice Output Active' : 'Voice Output Muted'}
                     >
                       {aiVoiceEnabled ? <Volume2 className="w-4 h-4" /> : <VolumeX className="w-4 h-4" />}
@@ -1247,11 +1235,10 @@ export const ProductDetailModal: React.FC<ProductDetailModalProps> = ({
                       className={`flex ${msg.sender === 'user' ? 'justify-end' : 'justify-start'}`}
                     >
                       <div
-                        className={`max-w-[85%] p-3.5 rounded-2xl text-xs leading-relaxed ${
-                          msg.sender === 'user'
+                        className={`max-w-[85%] p-3.5 rounded-2xl text-xs leading-relaxed ${msg.sender === 'user'
                             ? 'bg-blue-600 text-white rounded-br-xs shadow-xs'
                             : 'bg-white text-slate-800 border border-slate-200 rounded-bl-xs shadow-xs'
-                        }`}
+                          }`}
                       >
                         <p>{msg.text}</p>
                         <span className={`text-[9px] block text-right mt-1 opacity-70`}>
@@ -1286,19 +1273,18 @@ export const ProductDetailModal: React.FC<ProductDetailModalProps> = ({
                       aiLanguage === 'ta'
                         ? "இந்த தயாரிப்பு பற்றி கேளுங்கள் (எ.கா. உத்தரவாதம், விவரக்குறிப்புகள்)..."
                         : aiLanguage === 'hi'
-                        ? "इस उत्पाद के बारे में पूछें (जैसे वारंटी, फीचर्स)..."
-                        : "Ask AI about this product (specs, warranty, offers, delivery)..."
+                          ? "इस उत्पाद के बारे में पूछें (जैसे वारंटी, फीचर्स)..."
+                          : "Ask AI about this product (specs, warranty, offers, delivery)..."
                     }
                     className="flex-1 bg-white border border-slate-300 rounded-xl px-4 py-2.5 text-xs text-slate-900 focus:outline-none focus:ring-2 focus:ring-indigo-500 shadow-xs"
                   />
                   <button
                     type="button"
                     onClick={handleToggleMic}
-                    className={`p-2.5 rounded-xl border transition-all cursor-pointer ${
-                      isListening
+                    className={`p-2.5 rounded-xl border transition-all cursor-pointer ${isListening
                         ? 'bg-rose-600 text-white border-rose-600 animate-pulse'
                         : 'bg-slate-100 hover:bg-slate-200 text-slate-700 border-slate-300'
-                    }`}
+                      }`}
                     title={isListening ? 'Listening...' : 'Speak Question with Microphone'}
                   >
                     {isListening ? <MicOff className="w-4 h-4" /> : <Mic className="w-4 h-4" />}
@@ -1368,9 +1354,8 @@ export const ProductDetailModal: React.FC<ProductDetailModalProps> = ({
               <button
                 key={idx}
                 onClick={() => setActiveImageIndex(idx)}
-                className={`w-14 h-14 rounded-xl overflow-hidden border-2 transition-all cursor-pointer ${
-                  activeImageIndex === idx ? 'border-blue-500 scale-105' : 'border-transparent opacity-60'
-                }`}
+                className={`w-14 h-14 rounded-xl overflow-hidden border-2 transition-all cursor-pointer ${activeImageIndex === idx ? 'border-blue-500 scale-105' : 'border-transparent opacity-60'
+                  }`}
               >
                 <img src={img} alt={`Thumb ${idx + 1}`} className="w-full h-full object-contain bg-white/10" />
               </button>
