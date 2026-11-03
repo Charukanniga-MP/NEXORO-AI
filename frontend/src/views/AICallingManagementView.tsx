@@ -197,7 +197,6 @@ export const AICallingManagementView: React.FC = () => {
       ta: 'Tamil (தமிழ்)',
       te: 'Telugu (తెలుగు)',
       ml: 'Malayalam (മലയാളം)',
-      kn: 'Kannada (ಕನ್ನಡ)',
       hi: 'Hindi (हिन्दी)'
     };
     return map[code.toLowerCase()] || code.toUpperCase();

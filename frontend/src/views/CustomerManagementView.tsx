@@ -101,7 +101,6 @@ export const CustomerManagementView: React.FC = () => {
       ta: 'Tamil (தமிழ்)',
       te: 'Telugu (తెలుగు)',
       ml: 'Malayalam (മലയാളം)',
-      kn: 'Kannada (ಕನ್ನಡ)',
       hi: 'Hindi (हिन्दी)'
     };
     return map[code?.toLowerCase()] || code?.toUpperCase() || 'EN';
@@ -432,8 +431,7 @@ export const CustomerManagementView: React.FC = () => {
                   <option value="ta">Tamil (தமிழ்)</option>
                   <option value="te">Telugu (తెలుగు)</option>
                   <option value="ml">Malayalam (മലയാളം)</option>
-                  <option value="kn">Kannada (ಕನ್ನಡ)</option>
-                </select>
+                                  </select>
               </div>
 
               <div className="flex justify-end space-x-2 pt-3 border-t border-slate-100">

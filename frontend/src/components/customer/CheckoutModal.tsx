@@ -204,7 +204,7 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
                 <option value="ta">Tamil (தமிழ் - Pallavi)</option>
                 <option value="te">Telugu (తెలుగు - Shruti)</option>
                 <option value="ml">Malayalam (മലയാളം - Sobhana)</option>
-                <option value="kn">Kannada (ಕನ್ನಡ - Sapna)</option>
+                <option value="hi">Hindi (हिन्दी - Swara)</option>
               </select>
             </div>
           </div>

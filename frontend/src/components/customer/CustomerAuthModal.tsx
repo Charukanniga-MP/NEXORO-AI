@@ -113,12 +113,12 @@ export const CustomerAuthModal: React.FC<CustomerAuthModalProps> = ({
       setName('Vikramaditya Reddy');
       setEmail('vikram.reddy@example.com');
       setPreferredLanguage('te');
-    } else if (lang === 'kn') {
-      setPhone('9880165432');
+    } else if (lang === 'hi') {
+      setPhone('9810198765');
       setPassword('customer');
-      setName('Priya Gowda');
-      setEmail('priya.gowda@example.com');
-      setPreferredLanguage('kn');
+      setName('Rahul Sharma');
+      setEmail('rahul.sharma@example.com');
+      setPreferredLanguage('hi');
     } else {
       setPhone('9811154321');
       setPassword('customer');
@@ -341,7 +341,7 @@ export const CustomerAuthModal: React.FC<CustomerAuthModalProps> = ({
                     <option value="ta">Tamil (தமிழ் - Pallavi Voice)</option>
                     <option value="te">Telugu (తెలుగు - Shruti Voice)</option>
                     <option value="ml">Malayalam (മലയാളം - Sobhana Voice)</option>
-                    <option value="kn">Kannada (ಕನ್ನಡ - Sapna Voice)</option>
+                    <option value="hi">Hindi (हिन्दी - Swara Voice)</option>
                   </select>
                 </div>
               </>
@@ -378,10 +378,10 @@ export const CustomerAuthModal: React.FC<CustomerAuthModalProps> = ({
               </button>
               <button
                 type="button"
-                onClick={() => handleDemoFill('kn')}
+                onClick={() => handleDemoFill('hi')}
                 className="p-1.5 bg-slate-100 hover:bg-blue-50 hover:text-blue-700 rounded-lg text-slate-700 text-left font-medium transition-colors cursor-pointer"
               >
-                🇮🇳 Kannada: 9880165432
+                🇮🇳 Hindi: 9810198765
               </button>
               <button
                 type="button"

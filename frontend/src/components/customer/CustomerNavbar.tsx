@@ -66,7 +66,7 @@ export const CustomerNavbar: React.FC<CustomerNavbarProps> = ({
     { code: 'ta', label: 'Tamil', native: 'தமிழ்' },
     { code: 'te', label: 'Telugu', native: 'తెలుగు' },
     { code: 'ml', label: 'Malayalam', native: 'മലയാളം' },
-    { code: 'kn', label: 'Kannada', native: 'ಕನ್ನಡ' },
+    { code: 'hi', label: 'Hindi', native: 'हिन्दी' },
   ];
 
   const currentLangObj = LANGUAGES.find(l => l.code === preferredLanguage) || LANGUAGES[0];
