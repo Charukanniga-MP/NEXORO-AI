@@ -55,6 +55,7 @@ export const CustomerNavbar: React.FC<CustomerNavbarProps> = ({
   onLanguageChange
 }) => {
   const { customer, customerLogout, cartCount, user, setPortalMode } = useAuth();
+  const isAdmin = user && ['ADMIN', 'SUPERADMIN'].includes(user.role?.toUpperCase());
   const [showUserMenu, setShowUserMenu] = useState(false);
   const [activeFeature, setActiveFeature] = useState<string | null>(null);
   const [showLangMenu, setShowLangMenu] = useState(false);
@@ -92,7 +93,7 @@ export const CustomerNavbar: React.FC<CustomerNavbarProps> = ({
               title="Click to open Admin Management Portal"
             >
               <Shield className="w-3.5 h-3.5 text-amber-300" />
-              <span>{user ? 'Admin Dashboard' : 'Admin Login'}</span>
+              <span>{isAdmin ? 'Admin Dashboard' : 'Admin Portal'}</span>
             </button>
             <span className="hidden md:inline text-blue-100">Helpline: +91-80-6000-4400</span>
           </div>
@@ -179,10 +180,10 @@ export const CustomerNavbar: React.FC<CustomerNavbarProps> = ({
           <button
             onClick={() => setPortalMode('admin')}
             className="flex items-center space-x-1.5 px-3 py-2 bg-slate-100 hover:bg-slate-200 text-slate-800 rounded-xl text-xs font-bold border border-slate-200/90 cursor-pointer transition-colors shadow-2xs"
-            title="Switch to Admin Login & Operations Portal"
+            title={isAdmin ? "Open Admin Operations Suite" : "Sign in to Enterprise Admin Portal"}
           >
             <Shield className="w-3.5 h-3.5 text-blue-600" />
-            <span className="hidden sm:inline">Admin Portal</span>
+            <span className="hidden sm:inline">{isAdmin ? 'Admin Dashboard' : 'Admin Portal'}</span>
           </button>
 
           {/* Customer Profile / Sign In */}

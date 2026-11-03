@@ -5,7 +5,7 @@ interface AuthContextType {
   // Admin Session
   user: User | null;
   adminToken: string | null;
-  adminLogin: (email: string, password: string) => Promise<boolean>;
+  adminLogin: (emailOrUsername: string, password: string) => Promise<boolean>;
   adminRegister: (data: any) => Promise<boolean>;
   adminLogout: () => void;
 
@@ -20,8 +20,8 @@ interface AuthContextType {
   refreshCustomer: () => Promise<void>;
 
   // Portal State & Navigation
-  portalMode: 'admin' | 'customer';
-  setPortalMode: (mode: 'admin' | 'customer') => void;
+  portalMode: 'admin' | 'customer' | 'store';
+  setPortalMode: (mode: 'admin' | 'customer' | 'store') => void;
   cartCount: number;
   setCartCount: React.Dispatch<React.SetStateAction<number>>;
   loading: boolean;
@@ -30,7 +30,7 @@ interface AuthContextType {
 
   // Backward compatible login/logout for existing views
   token: string | null;
-  login: (email: string, password: string) => Promise<boolean>;
+  login: (emailOrUsername: string, password: string) => Promise<boolean>;
   userLogin: (data: { name: string; email: string; phone: string }) => Promise<boolean>;
   register: (data: any) => Promise<boolean>;
   logout: () => void;
@@ -45,24 +45,32 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [customer, setCustomer] = useState<CustomerProfile | null>(null);
   const [customerToken, setCustomerToken] = useState<string | null>(localStorage.getItem('nexora_customer_token'));
   
-  const [portalMode, setPortalModeState] = useState<'admin' | 'customer'>(() => {
+  const [portalMode, setPortalModeState] = useState<'admin' | 'customer' | 'store'>(() => {
     // 1. Check URL parameters and hash first
     const urlParams = new URLSearchParams(window.location.search);
     const param = urlParams.get('portal');
-    if (param === 'admin' || window.location.hash.toLowerCase().includes('admin')) {
+    const hash = window.location.hash.toLowerCase();
+    if (param === 'admin' || hash.includes('admin') || window.location.pathname.includes('/admin')) {
       return 'admin';
     }
-    if (param === 'customer' || window.location.hash.toLowerCase().includes('customer')) {
+    if (param === 'store' || hash.includes('store')) {
+      return 'store';
+    }
+    if (param === 'customer' || hash.includes('customer')) {
       return 'customer';
     }
-    return (localStorage.getItem('nexora_portal_mode') as 'admin' | 'customer') || 'customer';
+    const saved = localStorage.getItem('nexora_portal_mode') as 'admin' | 'customer' | 'store';
+    if (saved === 'admin' || saved === 'customer' || saved === 'store') {
+      return saved;
+    }
+    return 'customer';
   });
   
   const [cartCount, setCartCount] = useState<number>(0);
   const [loading, setLoading] = useState<boolean>(true);
   const [pendingHandoffsCount, setPendingHandoffsCount] = useState<number>(0);
 
-  const setPortalMode = (mode: 'admin' | 'customer') => {
+  const setPortalMode = (mode: 'admin' | 'customer' | 'store') => {
     localStorage.setItem('nexora_portal_mode', mode);
     window.location.hash = mode;
     setPortalModeState(mode);
@@ -73,6 +81,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       const hash = window.location.hash.toLowerCase();
       if (hash.includes('admin')) {
         setPortalModeState('admin');
+      } else if (hash.includes('store')) {
+        setPortalModeState('store');
       } else if (hash.includes('customer')) {
         setPortalModeState('customer');
       }
@@ -82,13 +92,14 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   }, []);
 
   const refreshCustomer = async () => {
-    const cToken = localStorage.getItem('nexora_customer_token');
+    const cToken = localStorage.getItem('nexora_customer_token') || sessionStorage.getItem('nexora_customer_token');
     if (cToken) {
       try {
         const res = await api.customerGetMe();
         setCustomer(res.data);
       } catch {
         localStorage.removeItem('nexora_customer_token');
+        sessionStorage.removeItem('nexora_customer_token');
         setCustomerToken(null);
         setCustomer(null);
       }
@@ -97,35 +108,47 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   useEffect(() => {
     const initSessions = async () => {
-      // 1. Check Admin Session
-      const savedAdminToken = localStorage.getItem('nexora_token');
+      // 1. Check Admin / Staff Session
+      const savedAdminToken = localStorage.getItem('nexora_token') || sessionStorage.getItem('nexora_token');
       if (savedAdminToken) {
         try {
           const res = await api.getMe();
-          setUser(res.data);
+          if (res.data && ['ADMIN', 'SUPERADMIN', 'AGENT'].includes(res.data.role?.toUpperCase())) {
+            setUser(res.data);
+            setAdminToken(savedAdminToken);
+          } else {
+            // Not a staff role
+            localStorage.removeItem('nexora_token');
+            sessionStorage.removeItem('nexora_token');
+            setAdminToken(null);
+            setUser(null);
+          }
         } catch {
           localStorage.removeItem('nexora_token');
+          sessionStorage.removeItem('nexora_token');
           setAdminToken(null);
           setUser(null);
         }
       }
 
       // 2. Check Customer Session
-      const savedCustomerToken = localStorage.getItem('nexora_customer_token');
+      const savedCustomerToken = localStorage.getItem('nexora_customer_token') || sessionStorage.getItem('nexora_customer_token');
       if (savedCustomerToken) {
         try {
           const res = await api.customerGetMe();
           setCustomer(res.data);
+          setCustomerToken(savedCustomerToken);
           
           // Fetch initial cart count
           try {
             const cartRes = await api.getCart();
-            setCartCount(cartRes.data.items_count || 0);
+            setCartCount(cartRes.data?.items_count || 0);
           } catch {
             // Cart might be empty
           }
         } catch {
           localStorage.removeItem('nexora_customer_token');
+          sessionStorage.removeItem('nexora_customer_token');
           setCustomerToken(null);
           setCustomer(null);
         }
@@ -138,11 +161,13 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   }, []);
 
   // Admin Auth Handlers
-  const adminLogin = async (email: string, password: string): Promise<boolean> => {
+  const adminLogin = async (emailOrUsername: string, password: string): Promise<boolean> => {
     try {
-      const res = await api.login({ email, password });
+      const res = await api.login({ username_or_email: emailOrUsername, email: emailOrUsername, password });
       const { access_token, user: loggedUser } = res.data;
       localStorage.setItem('nexora_token', access_token);
+      localStorage.setItem('nexora_admin_token', access_token);
+      sessionStorage.setItem('nexora_token', access_token);
       setAdminToken(access_token);
       setUser(loggedUser);
       setPortalMode('admin');
@@ -159,6 +184,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       const { access_token, user: loggedUser } = res.data;
       localStorage.setItem('nexora_token', access_token);
       localStorage.setItem('nexora_admin_token', access_token);
+      sessionStorage.setItem('nexora_token', access_token);
       setAdminToken(access_token);
       setUser(loggedUser);
       return true;
@@ -173,6 +199,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       const res = await api.register(data);
       const { access_token, user: registeredUser } = res.data;
       localStorage.setItem('nexora_token', access_token);
+      localStorage.setItem('nexora_admin_token', access_token);
+      sessionStorage.setItem('nexora_token', access_token);
       setAdminToken(access_token);
       setUser(registeredUser);
       setPortalMode('admin');
@@ -185,8 +213,12 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   const adminLogout = () => {
     localStorage.removeItem('nexora_token');
+    localStorage.removeItem('nexora_admin_token');
+    sessionStorage.removeItem('nexora_token');
+    sessionStorage.removeItem('nexora_admin_token');
     setAdminToken(null);
     setUser(null);
+    setPortalMode('customer');
   };
 
   // Customer Auth Handlers
@@ -195,6 +227,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       const res = await api.customerLogin({ identifier, password });
       const { access_token, customer: loggedCustomer } = res.data;
       localStorage.setItem('nexora_customer_token', access_token);
+      sessionStorage.setItem('nexora_customer_token', access_token);
       setCustomerToken(access_token);
       setCustomer(loggedCustomer);
       
@@ -216,6 +249,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       const res = await api.customerRegister(data);
       const { access_token, customer: regCustomer } = res.data;
       localStorage.setItem('nexora_customer_token', access_token);
+      sessionStorage.setItem('nexora_customer_token', access_token);
       setCustomerToken(access_token);
       setCustomer(regCustomer);
       setCartCount(0);
@@ -236,12 +270,24 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     try {
       const res = await api.customerPortalRegister(data);
       const { access_token, user: loggedUser } = res.data;
-      localStorage.setItem('nexora_token', access_token);
       localStorage.setItem('nexora_customer_token', access_token);
-      setAdminToken(access_token);
+      sessionStorage.setItem('nexora_customer_token', access_token);
       setCustomerToken(access_token);
-      setUser(loggedUser);
-      setPortalMode('admin');
+      try {
+        const cRes = await api.customerGetMe();
+        setCustomer(cRes.data);
+      } catch {
+        setCustomer({
+          id: loggedUser.id,
+          customer_code: `CUST-${loggedUser.id.slice(0, 6).toUpperCase()}`,
+          name: loggedUser.full_name,
+          phone: loggedUser.phone || data.phone,
+          email: loggedUser.email,
+          preferred_language: data.preferred_language || 'en',
+          total_orders_count: 0,
+          created_at: new Date().toISOString()
+        });
+      }
       return { success: true };
     } catch (err: any) {
       console.error("Customer registration failed:", err);
@@ -254,12 +300,24 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     try {
       const res = await api.customerPortalLogin({ identifier, password });
       const { access_token, user: loggedUser } = res.data;
-      localStorage.setItem('nexora_token', access_token);
       localStorage.setItem('nexora_customer_token', access_token);
-      setAdminToken(access_token);
+      sessionStorage.setItem('nexora_customer_token', access_token);
       setCustomerToken(access_token);
-      setUser(loggedUser);
-      setPortalMode('admin');
+      try {
+        const cRes = await api.customerGetMe();
+        setCustomer(cRes.data);
+      } catch {
+        setCustomer({
+          id: loggedUser.id,
+          customer_code: `CUST-${loggedUser.id.slice(0, 6).toUpperCase()}`,
+          name: loggedUser.full_name,
+          phone: loggedUser.phone || identifier,
+          email: loggedUser.email,
+          preferred_language: 'en',
+          total_orders_count: 0,
+          created_at: new Date().toISOString()
+        });
+      }
       return { success: true };
     } catch (err: any) {
       console.error("Customer login failed:", err);
@@ -270,11 +328,11 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   const customerLogout = () => {
     localStorage.removeItem('nexora_customer_token');
+    sessionStorage.removeItem('nexora_customer_token');
     setCustomerToken(null);
     setCustomer(null);
     setCartCount(0);
   };
-
 
   return (
     <AuthContext.Provider
@@ -299,15 +357,15 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         cartCount,
         setCartCount,
         loading,
-        userLogin,
         pendingHandoffsCount,
         setPendingHandoffsCount,
 
-        // Backwards compatibility aliases
+        // Backward compatible mappings
         token: adminToken,
         login: adminLogin,
+        userLogin,
         register: adminRegister,
-        logout: adminLogout,
+        logout: adminLogout
       }}
     >
       {children}

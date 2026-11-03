@@ -3,9 +3,15 @@ import { Lock, Mail, User, Phone, ArrowRight, ShieldCheck, Sparkles, Headphones,
 import { useAuth } from '../context/AuthContext';
 import { NexoraAvatar } from '../components/layout/NexoraAvatar';
 
-export const AuthView: React.FC = () => {
-  const { login, register, customerPortalRegister, customerPortalLogin, setPortalMode } = useAuth();
-  const [roleMode, setRoleMode] = useState<'CUSTOMER' | 'AGENT' | 'ADMIN'>('CUSTOMER');
+interface AuthViewProps {
+  initialRole?: 'CUSTOMER' | 'AGENT' | 'ADMIN';
+}
+
+export const AuthView: React.FC<AuthViewProps> = ({ initialRole }) => {
+  const { login, register, customerPortalRegister, customerPortalLogin, setPortalMode, portalMode } = useAuth();
+  const [roleMode, setRoleMode] = useState<'CUSTOMER' | 'AGENT' | 'ADMIN'>(
+    initialRole || (portalMode === 'admin' ? 'ADMIN' : 'CUSTOMER')
+  );
   
   // Customer sub-tab: 'login' vs 'register'
   const [customerSubMode, setCustomerSubMode] = useState<'login' | 'register'>('login');
@@ -21,8 +27,8 @@ export const AuthView: React.FC = () => {
   const [custLoginPassword, setCustLoginPassword] = useState<string>('customer');
 
   // Staff credentials (AI Agent & Admin)
-  const [email, setEmail] = useState<string>('agent@nexora.ai');
-  const [password, setPassword] = useState<string>('agent');
+  const [email, setEmail] = useState<string>(initialRole === 'ADMIN' || portalMode === 'admin' ? 'admin' : 'agent');
+  const [password, setPassword] = useState<string>(initialRole === 'ADMIN' || portalMode === 'admin' ? 'Admin@123' : 'Agent@123');
   const [isStaffRegister, setIsStaffRegister] = useState<boolean>(false);
   const [fullName, setFullName] = useState<string>('');
   const [staffPhone, setStaffPhone] = useState<string>('');
@@ -41,11 +47,11 @@ export const AuthView: React.FC = () => {
       setCustLoginIdent('9876543210');
       setCustLoginPassword('customer');
     } else if (newRole === 'AGENT') {
-      setEmail('agent@nexora.ai');
-      setPassword('agent');
+      setEmail('agent');
+      setPassword('Agent@123');
     } else {
-      setEmail('admin@nexora.ai');
-      setPassword('admin');
+      setEmail('admin');
+      setPassword('Admin@123');
     }
   };
 
@@ -131,7 +137,7 @@ export const AuthView: React.FC = () => {
             setError('Staff registration failed. Email may already be registered.');
           }
         } else {
-          const ok = await login(email.trim().toLowerCase(), password);
+          const ok = await login(email.trim(), password);
           if (!ok) {
             setError(`Invalid credentials for ${roleMode === 'AGENT' ? 'AI Agent' : 'Admin'}. Please verify email and password.`);
           }
@@ -428,14 +434,14 @@ export const AuthView: React.FC = () => {
 
                 <div>
                   <label className="block font-semibold text-slate-700 mb-1">
-                    {roleMode === 'ADMIN' ? 'Administrator Email' : 'AI Agent Extension Email'}
+                    {roleMode === 'ADMIN' ? 'Administrator Username or Email' : 'AI Agent Extension Username or Email'}
                   </label>
                   <div className="relative">
-                    <Mail className="w-4 h-4 text-slate-400 absolute left-3 top-2.5" />
+                    <User className="w-4 h-4 text-slate-400 absolute left-3 top-2.5" />
                     <input
-                      type="email"
+                      type="text"
                       required
-                      placeholder={roleMode === 'ADMIN' ? 'admin@nexora.ai' : 'agent@nexora.ai'}
+                      placeholder={roleMode === 'ADMIN' ? 'admin or admin@nexora.ai' : 'agent or agent@nexora.ai'}
                       value={email}
                       onChange={(e) => setEmail(e.target.value)}
                       className="w-full pl-9 pr-3 py-2 bg-slate-50 border border-slate-200 rounded-xl focus:bg-white focus:outline-none focus:ring-2 focus:ring-blue-500 text-slate-800"
@@ -496,11 +502,11 @@ export const AuthView: React.FC = () => {
                   setCustLoginIdent('9876543210');
                   setCustLoginPassword('customer');
                 } else if (roleMode === 'AGENT') {
-                  setEmail('agent@nexora.ai');
-                  setPassword('agent');
+                  setEmail('agent');
+                  setPassword('Agent@123');
                 } else {
-                  setEmail('admin@nexora.ai');
-                  setPassword('admin');
+                  setEmail('admin');
+                  setPassword('Admin@123');
                 }
                 setError('');
               }}
@@ -508,7 +514,7 @@ export const AuthView: React.FC = () => {
             >
               <Sparkles className="w-3.5 h-3.5 text-blue-500" />
               <span>
-                Auto-fill verified demo {roleMode.toLowerCase()} credentials ({roleMode === 'CUSTOMER' ? '9876543210 / customer' : roleMode === 'AGENT' ? 'agent@nexora.ai / agent' : 'admin@nexora.ai / admin'})
+                Auto-fill verified demo {roleMode.toLowerCase()} credentials ({roleMode === 'CUSTOMER' ? '9876543210 / customer' : roleMode === 'AGENT' ? 'agent / Agent@123' : 'admin / Admin@123'})
               </span>
             </button>
 

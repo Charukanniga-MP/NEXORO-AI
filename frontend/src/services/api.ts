@@ -12,11 +12,21 @@ export const apiClient = axios.create({
 
 // Auto-attach JWT token (Admin or Customer), checking tab-isolated sessionStorage first
 apiClient.interceptors.request.use((config) => {
-  const token =
-    sessionStorage.getItem('nexora_token') ||
-    sessionStorage.getItem('nexora_customer_token') ||
-    localStorage.getItem('nexora_token') ||
-    localStorage.getItem('nexora_customer_token');
+  const isCustomerEndpoint = config.url && (config.url.startsWith('/customer') || config.url.startsWith('/cart') || config.url.startsWith('/checkout'));
+  let token: string | null = null;
+  if (isCustomerEndpoint) {
+    token =
+      sessionStorage.getItem('nexora_customer_token') ||
+      localStorage.getItem('nexora_customer_token') ||
+      sessionStorage.getItem('nexora_token') ||
+      localStorage.getItem('nexora_token');
+  } else {
+    token =
+      sessionStorage.getItem('nexora_token') ||
+      localStorage.getItem('nexora_token') ||
+      sessionStorage.getItem('nexora_customer_token') ||
+      localStorage.getItem('nexora_customer_token');
+  }
   if (token && config.headers) {
     config.headers.Authorization = `Bearer ${token}`;
   }
@@ -340,7 +350,7 @@ export interface CompanySettings {
 // API Methods
 export const api = {
   // Admin & Agent Auth
-  login: (data: { email: string; password: string }) => apiClient.post('/auth/login', data),
+  login: (data: { email?: string; username_or_email?: string; username?: string; password: string }) => apiClient.post<{ access_token: string; token_type: string; user: User }>('/auth/login', data),
   userLogin: (data: { name: string; email: string; phone: string }) => apiClient.post('/auth/user-login', data),
   customerPortalRegister: (data: { name: string; email: string; phone: string; password: string; preferred_language?: string }) =>
     apiClient.post<{ access_token: string; token_type: string; user: User }>('/auth/customer-register', data),

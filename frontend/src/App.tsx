@@ -25,7 +25,7 @@ import { AICallingManagementView } from './views/AICallingManagementView';
 import { Bell, AlertCircle, X, Headphones, Eye, RotateCcw } from 'lucide-react';
 
 const MainApp: React.FC = () => {
-  const { user, token, loading, setPendingHandoffsCount, portalMode, setPortalMode } = useAuth();
+  const { user, token, adminToken, loading, setPendingHandoffsCount, portalMode, setPortalMode } = useAuth();
   const [currentTab, setCurrentTab] = useState<string>('dashboard');
   const [liveHandoffAlert, setLiveHandoffAlert] = useState<any | null>(null);
 
@@ -87,13 +87,14 @@ const MainApp: React.FC = () => {
   }
 
   // 1. Customer Shopping Portal
-  if (portalMode === 'customer') {
+  if (portalMode === 'customer' || portalMode === 'store') {
     return <CustomerStoreView />;
   }
 
-  // 2. Admin Portal (Protected)
-  if (!token) {
-    return <AuthView />;
+  // 2. Admin & Staff Portal (Protected - requires staff/admin session)
+  const isStaffAuthenticated = Boolean(adminToken && user && ['ADMIN', 'SUPERADMIN', 'AGENT'].includes(user.role?.toUpperCase()));
+  if (!isStaffAuthenticated) {
+    return <AuthView initialRole="ADMIN" />;
   }
 
   const effectiveRole = adminRoleOverride || user?.role?.toUpperCase();
@@ -151,6 +152,10 @@ const MainApp: React.FC = () => {
     switch (currentTab) {
       case 'dashboard':
         return <DashboardView onNavigate={(tab) => setCurrentTab(tab)} />;
+      case 'agent-console':
+        return <AgentConsoleView />;
+      case 'customer-portal':
+        return <CustomerDashboardView />;
       case 'ai-calling':
         return <AICallingManagementView />;
       case 'store':
