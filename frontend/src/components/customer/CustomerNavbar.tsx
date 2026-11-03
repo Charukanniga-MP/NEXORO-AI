@@ -484,8 +484,8 @@ export const CustomerNavbar: React.FC<CustomerNavbarProps> = ({
           <button
             onClick={() => onSelectCategory('all')}
             className={`px-3 py-1 rounded-lg shrink-0 cursor-pointer transition-colors ${selectedCategory === 'all'
-                ? 'bg-blue-600 text-white font-bold shadow-xs'
-                : 'text-slate-600 hover:bg-slate-200/80'
+              ? 'bg-blue-600 text-white font-bold shadow-xs'
+              : 'text-slate-600 hover:bg-slate-200/80'
               }`}
           >
             All 16 Categories
@@ -496,8 +496,8 @@ export const CustomerNavbar: React.FC<CustomerNavbarProps> = ({
               key={cat.slug}
               onClick={() => onSelectCategory(cat.name)}
               className={`px-3 py-1 rounded-lg shrink-0 cursor-pointer transition-colors ${selectedCategory.toLowerCase() === cat.name.toLowerCase()
-                  ? 'bg-blue-600 text-white font-bold shadow-xs'
-                  : 'text-slate-600 hover:bg-slate-200/80'
+                ? 'bg-blue-600 text-white font-bold shadow-xs'
+                : 'text-slate-600 hover:bg-slate-200/80'
                 }`}
             >
               {cat.name}

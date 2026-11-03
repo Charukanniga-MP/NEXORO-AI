@@ -1,14 +1,14 @@
 import React, { useState } from 'react';
-import { 
-  X, 
-  MapPin, 
-  CreditCard, 
-  QrCode, 
-  Building2, 
-  Banknote, 
-  Globe, 
-  ShieldCheck, 
-  CheckCircle2, 
+import {
+  X,
+  MapPin,
+  CreditCard,
+  QrCode,
+  Building2,
+  Banknote,
+  Globe,
+  ShieldCheck,
+  CheckCircle2,
   Sparkles,
   PhoneCall
 } from 'lucide-react';
@@ -220,11 +220,10 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
               <button
                 type="button"
                 onClick={() => setPaymentMethod('UPI')}
-                className={`p-3 rounded-xl border text-center cursor-pointer transition-all ${
-                  paymentMethod === 'UPI'
+                className={`p-3 rounded-xl border text-center cursor-pointer transition-all ${paymentMethod === 'UPI'
                     ? 'border-blue-600 bg-blue-50/80 text-blue-900 shadow-xs'
                     : 'border-slate-200 bg-white text-slate-700 hover:bg-slate-100'
-                }`}
+                  }`}
               >
                 <QrCode className="w-5 h-5 mx-auto mb-1 text-blue-600" />
                 <p className="font-bold text-xs">UPI</p>
@@ -234,11 +233,10 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
               <button
                 type="button"
                 onClick={() => setPaymentMethod('DEBIT_CARD')}
-                className={`p-3 rounded-xl border text-center cursor-pointer transition-all ${
-                  paymentMethod === 'DEBIT_CARD'
+                className={`p-3 rounded-xl border text-center cursor-pointer transition-all ${paymentMethod === 'DEBIT_CARD'
                     ? 'border-blue-600 bg-blue-50/80 text-blue-900 shadow-xs'
                     : 'border-slate-200 bg-white text-slate-700 hover:bg-slate-100'
-                }`}
+                  }`}
               >
                 <CreditCard className="w-5 h-5 mx-auto mb-1 text-indigo-600" />
                 <p className="font-bold text-xs">Cards</p>
@@ -248,11 +246,10 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
               <button
                 type="button"
                 onClick={() => setPaymentMethod('NET_BANKING')}
-                className={`p-3 rounded-xl border text-center cursor-pointer transition-all ${
-                  paymentMethod === 'NET_BANKING'
+                className={`p-3 rounded-xl border text-center cursor-pointer transition-all ${paymentMethod === 'NET_BANKING'
                     ? 'border-blue-600 bg-blue-50/80 text-blue-900 shadow-xs'
                     : 'border-slate-200 bg-white text-slate-700 hover:bg-slate-100'
-                }`}
+                  }`}
               >
                 <Building2 className="w-5 h-5 mx-auto mb-1 text-sky-600" />
                 <p className="font-bold text-xs">Net Banking</p>
@@ -262,11 +259,10 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
               <button
                 type="button"
                 onClick={() => setPaymentMethod('CASH_ON_DELIVERY')}
-                className={`p-3 rounded-xl border text-center cursor-pointer transition-all ${
-                  paymentMethod === 'CASH_ON_DELIVERY'
+                className={`p-3 rounded-xl border text-center cursor-pointer transition-all ${paymentMethod === 'CASH_ON_DELIVERY'
                     ? 'border-blue-600 bg-blue-50/80 text-blue-900 shadow-xs'
                     : 'border-slate-200 bg-white text-slate-700 hover:bg-slate-100'
-                }`}
+                  }`}
               >
                 <Banknote className="w-5 h-5 mx-auto mb-1 text-emerald-600" />
                 <p className="font-bold text-xs">Cash on Delivery</p>
