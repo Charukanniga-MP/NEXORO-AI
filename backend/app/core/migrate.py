@@ -11,6 +11,7 @@ MIGRATIONS = {
     ],
     "customers": [
         ("customer_code", "TEXT"),
+        ("username", "TEXT"),
         ("hashed_password", "TEXT"),
         ("address_line1", "TEXT"),
         ("address_line2", "TEXT"),

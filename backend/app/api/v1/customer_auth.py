@@ -43,6 +43,7 @@ def serialize_customer(customer: Customer) -> CustomerProfileResponse:
         id=customer.id,
         customer_code=customer.customer_code or f"CUST-{customer.id[:8].upper()}",
         name=customer.name or "Valued Customer",
+        username=getattr(customer, "username", None),
         phone=customer.phone,
         email=customer.email,
         address_line1=customer.address_line1,
@@ -74,8 +75,35 @@ async def register_customer(req: CustomerRegisterRequest, db: AsyncSession = Dep
 
     clean_email = req.email.strip().lower() if req.email else None
 
+    # Password match check
+    if req.confirm_password and req.password != req.confirm_password:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Passwords do not match. Please verify and try again."
+        )
+
+    # Username uniqueness check
+    clean_username = req.username.strip() if req.username and req.username.strip() else None
+    if clean_username:
+        u_un_stmt = select(User).where(func.lower(User.username) == clean_username.lower())
+        u_un_res = await db.execute(u_un_stmt)
+        if u_un_res.scalars().first():
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="This username is already taken. Please choose another username."
+            )
+        c_un_stmt = select(Customer).where(func.lower(Customer.username) == clean_username.lower())
+        c_un_res = await db.execute(c_un_stmt)
+        if c_un_res.scalars().first():
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="This username is already taken. Please choose another username."
+            )
+    else:
+        clean_username = clean_email.split('@')[0] if clean_email else f"user_{clean_phone[-4:]}"
+
     # Check if phone already registered in Customer or User
-    phone_stmt = select(Customer).where(Customer.phone == clean_phone)
+    phone_stmt = select(Customer).where(or_(Customer.phone == clean_phone, Customer.phone.endswith(clean_phone)))
     phone_res = await db.execute(phone_stmt)
     if phone_res.scalars().first():
         raise HTTPException(
@@ -83,14 +111,29 @@ async def register_customer(req: CustomerRegisterRequest, db: AsyncSession = Dep
             detail="A customer with this mobile number is already registered. Please sign in."
         )
 
+    u_phone_stmt = select(User).where(or_(User.phone == clean_phone, User.phone.endswith(clean_phone)))
+    u_phone_res = await db.execute(u_phone_stmt)
+    if u_phone_res.scalars().first():
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="A user with this mobile number is already registered. Please sign in."
+        )
+
     # Check if email already registered (if provided)
     if clean_email:
-        email_stmt = select(Customer).where(Customer.email == clean_email)
+        email_stmt = select(Customer).where(func.lower(Customer.email) == clean_email)
         email_res = await db.execute(email_stmt)
         if email_res.scalars().first():
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
                 detail="A customer with this email address is already registered. Please sign in."
+            )
+        u_email_stmt = select(User).where(func.lower(User.email) == clean_email)
+        u_email_res = await db.execute(u_email_stmt)
+        if u_email_res.scalars().first():
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="A user with this email address is already registered. Please sign in."
             )
 
     # Get primary company ID
@@ -105,6 +148,7 @@ async def register_customer(req: CustomerRegisterRequest, db: AsyncSession = Dep
         company_id=company.id if company else None,
         customer_code=customer_code,
         name=req.name.strip(),
+        username=clean_username,
         phone=clean_phone,
         email=clean_email,
         hashed_password=pwd_hash,
@@ -122,28 +166,21 @@ async def register_customer(req: CustomerRegisterRequest, db: AsyncSession = Dep
     )
     db.add(new_customer)
 
-    # Mirror in User table so customer can log into both Store & Customer Dashboard
+    # Mirror in User table
     user_email = clean_email or f"{clean_phone}@customer.nexora.ai"
-    u_stmt = select(User).where((User.email == user_email) | (User.phone == clean_phone))
-    u_res = await db.execute(u_stmt)
-    user = u_res.scalars().first()
-    if not user:
-        user = User(
-            company_id=company.id if company else None,
-            email=user_email,
-            phone=clean_phone,
-            full_name=req.name.strip(),
-            hashed_password=pwd_hash,
-            role="CUSTOMER",
-            department="Customer Portal",
-            status="AVAILABLE",
-            is_active=True
-        )
-        db.add(user)
-    else:
-        user.hashed_password = pwd_hash
-        user.full_name = req.name.strip()
-        user.phone = clean_phone
+    user = User(
+        company_id=company.id if company else None,
+        username=clean_username,
+        email=user_email,
+        phone=clean_phone,
+        full_name=req.name.strip(),
+        hashed_password=pwd_hash,
+        role="CUSTOMER",
+        department="Customer Portal",
+        status="AVAILABLE",
+        is_active=True
+    )
+    db.add(user)
 
     await db.commit()
     await db.refresh(new_customer)
@@ -161,63 +198,72 @@ async def login_customer(req: CustomerLoginRequest, db: AsyncSession = Depends(g
     raw_ident = req.identifier.strip()
     digits = re.sub(r'\D', '', raw_ident)
     is_phone = len(digits) == 10 or (len(digits) == 12 and digits.startswith('91'))
-    phone_clean = digits[-10:] if is_phone else raw_ident
+    phone_clean = digits[-10:] if is_phone else ""
     email_clean = raw_ident.lower()
 
-    # Query customer by email or phone
-    stmt = select(Customer).where(
-        or_(
-            Customer.email == email_clean,
+    # Search in Customer table
+    c_conds = [
+        func.lower(Customer.username) == email_clean,
+        func.lower(Customer.email) == email_clean,
+        Customer.phone == raw_ident
+    ]
+    if phone_clean:
+        c_conds.extend([
             Customer.phone == phone_clean,
-            Customer.phone == raw_ident
-        )
-    )
+            Customer.phone.endswith(phone_clean)
+        ])
+    stmt = select(Customer).where(or_(*c_conds))
     res = await db.execute(stmt)
     customer = res.scalars().first()
 
-    # Fallback to User table if registered via main portal
-    if not customer:
-        u_stmt = select(User).where(
-            or_(
-                User.email == email_clean,
-                User.phone == phone_clean,
-                User.phone == raw_ident
-            )
-        )
-        u_res = await db.execute(u_stmt)
-        user_match = u_res.scalars().first()
-        if user_match and verify_password(req.password, user_match.hashed_password):
-            # Create matching customer record
-            code = await generate_unique_customer_code(db)
-            customer = Customer(
-                id=user_match.id,
-                company_id=user_match.company_id,
-                customer_code=code,
-                name=user_match.full_name,
-                phone=user_match.phone or phone_clean,
-                email=user_match.email,
-                hashed_password=user_match.hashed_password,
-                role="CUSTOMER",
-                is_active=True,
-                preferred_language="en"
-            )
-            db.add(customer)
-            await db.commit()
-            await db.refresh(customer)
+    # Search in User table
+    u_conds = [
+        func.lower(User.username) == email_clean,
+        func.lower(User.email) == email_clean,
+        User.phone == raw_ident
+    ]
+    if phone_clean:
+        u_conds.extend([
+            User.phone == phone_clean,
+            User.phone.endswith(phone_clean)
+        ])
+    u_stmt = select(User).where(or_(*u_conds))
+    u_res = await db.execute(u_stmt)
+    user_match = u_res.scalars().first()
 
-    if not customer or not customer.hashed_password:
+    matched = False
+    if customer and customer.hashed_password and verify_password(req.password, customer.hashed_password):
+        matched = True
+    elif user_match and user_match.hashed_password and verify_password(req.password, user_match.hashed_password):
+        matched = True
+
+    if not matched:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Invalid 10-digit mobile number/email or password."
+            detail="Invalid mobile number, username, email, or password."
         )
 
-    if not verify_password(req.password, customer.hashed_password):
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Invalid 10-digit mobile number/email or password."
+    # Sync Customer if user was found but Customer was not
+    if not customer and user_match:
+        code = await generate_unique_customer_code(db)
+        customer = Customer(
+            id=user_match.id,
+            company_id=user_match.company_id,
+            customer_code=code,
+            name=user_match.full_name,
+            username=user_match.username,
+            phone=user_match.phone or (phone_clean if phone_clean else "9876543210"),
+            email=user_match.email,
+            hashed_password=user_match.hashed_password,
+            role="CUSTOMER",
+            is_active=user_match.is_active,
+            preferred_language="en"
         )
+        db.add(customer)
+        await db.commit()
+        await db.refresh(customer)
 
-    if not customer.is_active:
+    if customer and not customer.is_active:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="This customer account has been deactivated. Please contact support."

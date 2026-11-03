@@ -2,7 +2,6 @@ import re
 import logging
 from datetime import datetime, timedelta
 from typing import Optional
-from pydantic import BaseModel, field_validator
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, or_, func
@@ -12,110 +11,122 @@ from app.core.security import verify_password, get_password_hash, create_access_
 from app.models.user import User
 from app.models.company import Company
 from app.models.customer import Customer
-from app.schemas.auth import LoginRequest, RegisterRequest, Token, ForgotPasswordRequest, ResetPasswordRequest
+from app.schemas.auth import (
+    LoginRequest,
+    RegisterRequest,
+    Token,
+    ForgotPasswordRequest,
+    ResetPasswordRequest,
+    CustomerRegisterPortalRequest,
+    CustomerLoginPortalRequest
+)
 from app.schemas.user import UserResponse
 from app.api.deps import get_current_user
 
 logger = logging.getLogger(__name__)
 router = APIRouter()
 
-class UserPortalLoginRequest(BaseModel):
-    name: str
-    email: str
-    phone: str
-    password: Optional[str] = None
-
-class CustomerRegisterPortalRequest(BaseModel):
-    name: str
-    email: str
-    phone: str
-    password: str
-    preferred_language: Optional[str] = "en"
-
-    @field_validator("phone")
-    def validate_10_digits(cls, v):
-        digits = re.sub(r'\D', '', str(v))
-        if len(digits) == 12 and digits.startswith('91'):
-            digits = digits[2:]
-        if len(digits) != 10:
-            raise ValueError("Mobile number must be exactly 10 digits (e.g. 9876543210)")
-        return digits
-
-    @field_validator("email", mode="before")
-    def clean_email(cls, v):
-        if not v or not str(v).strip():
-            raise ValueError("Email is required for customer registration")
-        return str(v).strip().lower()
-
-class CustomerLoginPortalRequest(BaseModel):
-    identifier: str # 10-digit mobile number or email
-    password: str
+class UserPortalLoginRequest(CustomerLoginPortalRequest):
+    name: Optional[str] = None
+    email: Optional[str] = None
+    phone: Optional[str] = None
 
 @router.post("/login", response_model=Token)
 async def login(req: LoginRequest, db: AsyncSession = Depends(get_db)):
-    clean_id = (req.username_or_email or req.email or "").strip()
+    clean_id = (req.username_or_email or req.email or req.username or "").strip()
     digits = re.sub(r'\D', '', clean_id)
     is_phone = len(digits) == 10 or (len(digits) == 12 and digits.startswith('91'))
-    phone_clean = digits[-10:] if is_phone else clean_id
+    phone_clean = digits[-10:] if is_phone else ""
     email_clean = clean_id.lower()
 
-    # 1. Check in User table by username, email, or phone
-    stmt = select(User).where(
-        or_(
-            User.username == clean_id,
-            User.email == email_clean,
+    # 1. Search in User table
+    u_conds = [
+        func.lower(User.username) == email_clean,
+        func.lower(User.email) == email_clean,
+        User.phone == clean_id
+    ]
+    if phone_clean:
+        u_conds.extend([
             User.phone == phone_clean,
-            User.phone == clean_id
-        )
-    )
+            User.phone.endswith(phone_clean)
+        ])
+
+    stmt = select(User).where(or_(*u_conds))
     result = await db.execute(stmt)
     user = result.scalars().first()
 
-    # 2. If not found in User, check Customer table
+    # 2. Search in Customer table if not found
+    customer = None
     if not user:
-        c_stmt = select(Customer).where(
-            or_(
-                Customer.email == email_clean,
+        c_conds = [
+            func.lower(Customer.username) == email_clean,
+            func.lower(Customer.email) == email_clean,
+            Customer.phone == clean_id
+        ]
+        if phone_clean:
+            c_conds.extend([
                 Customer.phone == phone_clean,
-                Customer.phone == clean_id
-            )
-        )
+                Customer.phone.endswith(phone_clean)
+            ])
+        c_stmt = select(Customer).where(or_(*c_conds))
         c_res = await db.execute(c_stmt)
         customer = c_res.scalars().first()
 
-        if customer and verify_password(req.password, customer.hashed_password):
-            # Sync user record
-            comp_stmt = select(Company)
-            comp_res = await db.execute(comp_stmt)
-            company = comp_res.scalars().first()
+    # Verify password
+    matched = False
+    if user and user.hashed_password and verify_password(req.password, user.hashed_password):
+        matched = True
+    elif customer and customer.hashed_password and verify_password(req.password, customer.hashed_password):
+        matched = True
 
-            user_email = customer.email or f"{customer.phone}@customer.nexora.ai"
-            user = User(
-                id=customer.id,
-                company_id=company.id if company else None,
-                username=customer.email or customer.phone,
-                email=user_email,
-                phone=customer.phone,
-                full_name=customer.name,
-                hashed_password=customer.hashed_password,
-                role="CUSTOMER",
-                department="Customer Portal",
-                status="AVAILABLE",
-                is_active=True
-            )
-            db.add(user)
-            await db.commit()
-            await db.refresh(user)
-
-    if not user or not verify_password(req.password, user.hashed_password):
+    if not matched:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Invalid credentials. Please verify your username/email and password.",
             headers={"WWW-Authenticate": "Bearer"},
         )
-    
-    if not user.is_active:
-        raise HTTPException(status_code=400, detail="Account is disabled")
+
+    # If matched on customer but user record is missing, sync user record
+    if not user and customer:
+        comp_stmt = select(Company)
+        comp_res = await db.execute(comp_stmt)
+        company = comp_res.scalars().first()
+
+        user_email = customer.email or f"{customer.phone}@customer.nexora.ai"
+        user = User(
+            id=customer.id,
+            company_id=company.id if company else None,
+            username=customer.username or customer.email or customer.phone,
+            email=user_email,
+            phone=customer.phone,
+            full_name=customer.name,
+            hashed_password=customer.hashed_password,
+            role="CUSTOMER",
+            department="Customer Portal",
+            status="AVAILABLE",
+            is_active=customer.is_active
+        )
+        db.add(user)
+        await db.commit()
+        await db.refresh(user)
+
+    if user and not user.is_active:
+        raise HTTPException(status_code=400, detail="Account is disabled. Please contact an administrator.")
+
+    # Role enforcement if role is requested
+    if req.role:
+        target_role = req.role.strip().upper()
+        user_role = (user.role or "").strip().upper()
+        if target_role == "ADMIN" and user_role not in ("ADMIN", "SUPERADMIN"):
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Access denied: Only authorized administrators can access the Admin Suite."
+            )
+        elif target_role == "AGENT" and user_role not in ("AGENT", "ADMIN", "SUPERADMIN"):
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Access denied: Only authorized support agents can access the Agent Console."
+            )
 
     access_token = create_access_token(
         subject=user.id,
@@ -152,22 +163,65 @@ async def customer_portal_register(req: CustomerRegisterPortalRequest, db: Async
     clean_email = req.email.strip().lower()
     clean_name = req.name.strip()
 
-    # Check existing user
-    stmt = select(User).where((User.email == clean_email) | (User.phone == digits))
-    res = await db.execute(stmt)
+    # Password match check
+    if req.confirm_password and req.password != req.confirm_password:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Passwords do not match. Please verify and try again."
+        )
+
+    # Username uniqueness check
+    clean_username = req.username.strip() if req.username and req.username.strip() else None
+    if clean_username:
+        u_un_stmt = select(User).where(func.lower(User.username) == clean_username.lower())
+        u_un_res = await db.execute(u_un_stmt)
+        if u_un_res.scalars().first():
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="This username is already taken. Please choose another username."
+            )
+        c_un_stmt = select(Customer).where(func.lower(Customer.username) == clean_username.lower())
+        c_un_res = await db.execute(c_un_stmt)
+        if c_un_res.scalars().first():
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="This username is already taken. Please choose another username."
+            )
+    else:
+        clean_username = clean_email.split('@')[0]
+
+    # Check existing phone in User or Customer
+    phone_stmt = select(User).where(or_(User.phone == digits, User.phone.endswith(digits)))
+    res = await db.execute(phone_stmt)
     if res.scalars().first():
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail="A customer with this 10-digit mobile number or email is already registered. Please sign in."
+            detail="A customer with this 10-digit mobile number is already registered. Please sign in."
         )
 
-    # Check existing customer
-    c_stmt = select(Customer).where((Customer.email == clean_email) | (Customer.phone == digits))
-    c_res = await db.execute(c_stmt)
+    c_phone_stmt = select(Customer).where(or_(Customer.phone == digits, Customer.phone.endswith(digits)))
+    c_res = await db.execute(c_phone_stmt)
     if c_res.scalars().first():
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail="A customer with this 10-digit mobile number or email is already registered. Please sign in."
+            detail="A customer with this 10-digit mobile number is already registered. Please sign in."
+        )
+
+    # Check existing email in User or Customer
+    email_stmt = select(User).where(func.lower(User.email) == clean_email)
+    e_res = await db.execute(email_stmt)
+    if e_res.scalars().first():
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="A customer with this email address is already registered. Please sign in."
+        )
+
+    c_email_stmt = select(Customer).where(func.lower(Customer.email) == clean_email)
+    ce_res = await db.execute(c_email_stmt)
+    if ce_res.scalars().first():
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="A customer with this email address is already registered. Please sign in."
         )
 
     comp_stmt = select(Company)
@@ -176,7 +230,7 @@ async def customer_portal_register(req: CustomerRegisterPortalRequest, db: Async
 
     pwd_hash = get_password_hash(req.password)
 
-    # Count for code
+    # Generate sequential Customer Code
     cnt_stmt = select(func.count(Customer.id))
     cnt_res = await db.execute(cnt_stmt)
     cnt = cnt_res.scalar() or 0
@@ -187,6 +241,7 @@ async def customer_portal_register(req: CustomerRegisterPortalRequest, db: Async
         company_id=company.id if company else None,
         customer_code=cust_code,
         name=clean_name,
+        username=clean_username,
         email=clean_email,
         phone=digits,
         hashed_password=pwd_hash,
@@ -201,7 +256,7 @@ async def customer_portal_register(req: CustomerRegisterPortalRequest, db: Async
     # 2. Create User record
     user = User(
         company_id=company.id if company else None,
-        username=clean_email,
+        username=clean_username,
         email=clean_email,
         phone=digits,
         full_name=clean_name,
@@ -238,60 +293,95 @@ async def customer_portal_login(req: CustomerLoginPortalRequest, db: AsyncSessio
     raw_id = req.identifier.strip()
     digits = re.sub(r'\D', '', raw_id)
     is_phone = len(digits) == 10 or (len(digits) == 12 and digits.startswith('91'))
-    phone_clean = digits[-10:] if is_phone else raw_id
+    phone_clean = digits[-10:] if is_phone else ""
     email_clean = raw_id.lower()
 
     # Search in User
-    stmt = select(User).where(
-        or_(
-            User.username == raw_id,
-            User.email == email_clean,
+    u_conds = [
+        func.lower(User.username) == email_clean,
+        func.lower(User.email) == email_clean,
+        User.phone == raw_id
+    ]
+    if phone_clean:
+        u_conds.extend([
             User.phone == phone_clean,
-            User.phone == raw_id
-        )
-    )
+            User.phone.endswith(phone_clean)
+        ])
+    stmt = select(User).where(or_(*u_conds))
     res = await db.execute(stmt)
     user = res.scalars().first()
 
     # Search in Customer
-    if not user:
-        c_stmt = select(Customer).where(
-            or_(
-                Customer.email == email_clean,
-                Customer.phone == phone_clean,
-                Customer.phone == raw_id
-            )
-        )
-        c_res = await db.execute(c_stmt)
-        customer = c_res.scalars().first()
+    c_conds = [
+        func.lower(Customer.username) == email_clean,
+        func.lower(Customer.email) == email_clean,
+        Customer.phone == raw_id
+    ]
+    if phone_clean:
+        c_conds.extend([
+            Customer.phone == phone_clean,
+            Customer.phone.endswith(phone_clean)
+        ])
+    c_stmt = select(Customer).where(or_(*c_conds))
+    c_res = await db.execute(c_stmt)
+    customer = c_res.scalars().first()
 
-        if customer and verify_password(req.password, customer.hashed_password):
-            comp_stmt = select(Company)
-            comp_res = await db.execute(comp_stmt)
-            company = comp_res.scalars().first()
+    matched = False
+    if user and user.hashed_password and verify_password(req.password, user.hashed_password):
+        matched = True
+    elif customer and customer.hashed_password and verify_password(req.password, customer.hashed_password):
+        matched = True
 
-            user = User(
-                id=customer.id,
-                company_id=company.id if company else None,
-                username=customer.email or customer.phone,
-                email=customer.email or f"{customer.phone}@customer.nexora.ai",
-                phone=customer.phone,
-                full_name=customer.name,
-                hashed_password=customer.hashed_password,
-                role="CUSTOMER",
-                department="Customer Portal",
-                status="AVAILABLE",
-                is_active=True
-            )
-            db.add(user)
-            await db.commit()
-            await db.refresh(user)
-
-    if not user or not verify_password(req.password, user.hashed_password):
+    if not matched:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Invalid 10-digit mobile number/email or password."
+            detail="Invalid 10-digit mobile number, username, email, or password."
         )
+
+    comp_stmt = select(Company)
+    comp_res = await db.execute(comp_stmt)
+    company = comp_res.scalars().first()
+
+    # Sync user record if missing
+    if not user and customer:
+        user = User(
+            id=customer.id,
+            company_id=company.id if company else None,
+            username=customer.username or customer.email or customer.phone,
+            email=customer.email or f"{customer.phone}@customer.nexora.ai",
+            phone=customer.phone,
+            full_name=customer.name,
+            hashed_password=customer.hashed_password,
+            role="CUSTOMER",
+            department="Customer Portal",
+            status="AVAILABLE",
+            is_active=customer.is_active
+        )
+        db.add(user)
+        await db.commit()
+        await db.refresh(user)
+    elif user and not customer:
+        cnt_stmt = select(func.count(Customer.id))
+        cnt_res = await db.execute(cnt_stmt)
+        cnt = cnt_res.scalar() or 0
+        customer = Customer(
+            id=user.id,
+            company_id=company.id if company else None,
+            customer_code=f"CUST-2026-{cnt + 1:05d}",
+            name=user.full_name,
+            username=user.username,
+            email=user.email,
+            phone=user.phone or (phone_clean if phone_clean else "9876543210"),
+            hashed_password=user.hashed_password,
+            role="CUSTOMER",
+            is_active=user.is_active
+        )
+        db.add(customer)
+        await db.commit()
+        await db.refresh(customer)
+
+    if user and not user.is_active:
+        raise HTTPException(status_code=403, detail="Customer account is deactivated. Please contact support.")
 
     access_token = create_access_token(subject=user.id, role="CUSTOMER")
     return {
@@ -312,11 +402,11 @@ async def customer_portal_login(req: CustomerLoginPortalRequest, db: AsyncSessio
 
 @router.post("/user-login", response_model=Token)
 async def user_portal_legacy_login(req: UserPortalLoginRequest, db: AsyncSession = Depends(get_db)):
-    cleaned_email = req.email.strip().lower()
-    raw_phone = req.phone.strip()
+    cleaned_email = (req.email or "").strip().lower()
+    raw_phone = (req.phone or "").strip()
     digits = re.sub(r'\D', '', raw_phone)
     phone_clean = digits[-10:] if len(digits) >= 10 else raw_phone
-    cleaned_name = req.name.strip()
+    cleaned_name = (req.name or "Valued Customer").strip()
 
     stmt = select(User).where((User.email == cleaned_email) | (User.phone == phone_clean))
     res = await db.execute(stmt)

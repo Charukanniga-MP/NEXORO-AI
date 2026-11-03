@@ -5,7 +5,7 @@ interface AuthContextType {
   // Admin Session
   user: User | null;
   adminToken: string | null;
-  adminLogin: (emailOrUsername: string, password: string) => Promise<boolean>;
+  adminLogin: (emailOrUsername: string, password: string, role?: string, remember_me?: boolean) => Promise<boolean>;
   adminRegister: (data: any) => Promise<boolean>;
   adminLogout: () => void;
 
@@ -14,8 +14,8 @@ interface AuthContextType {
   customerToken: string | null;
   customerLogin: (identifier: string, password: string) => Promise<boolean>;
   customerRegister: (data: any) => Promise<boolean>;
-  customerPortalRegister: (data: { name: string; email: string; phone: string; password: string; preferred_language?: string }) => Promise<{ success: boolean; message?: string }>;
-  customerPortalLogin: (identifier: string, password: string) => Promise<{ success: boolean; message?: string }>;
+  customerPortalRegister: (data: { name: string; username?: string; email: string; phone: string; password: string; confirm_password?: string; preferred_language?: string }) => Promise<{ success: boolean; message?: string }>;
+  customerPortalLogin: (identifier: string, password: string, remember_me?: boolean) => Promise<{ success: boolean; message?: string }>;
   customerLogout: () => void;
   refreshCustomer: () => Promise<void>;
 
@@ -30,7 +30,7 @@ interface AuthContextType {
 
   // Backward compatible login/logout for existing views
   token: string | null;
-  login: (emailOrUsername: string, password: string) => Promise<boolean>;
+  login: (emailOrUsername: string, password: string, role?: string, remember_me?: boolean) => Promise<boolean>;
   userLogin: (data: { name: string; email: string; phone: string }) => Promise<boolean>;
   register: (data: any) => Promise<boolean>;
   logout: () => void;
@@ -161,12 +161,14 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   }, []);
 
   // Admin Auth Handlers
-  const adminLogin = async (emailOrUsername: string, password: string): Promise<boolean> => {
+  const adminLogin = async (emailOrUsername: string, password: string, role?: string, remember_me: boolean = true): Promise<boolean> => {
     try {
-      const res = await api.login({ username_or_email: emailOrUsername, email: emailOrUsername, password });
+      const res = await api.login({ username_or_email: emailOrUsername, email: emailOrUsername, password, role, remember_me });
       const { access_token, user: loggedUser } = res.data;
-      localStorage.setItem('nexora_token', access_token);
-      localStorage.setItem('nexora_admin_token', access_token);
+      if (remember_me) {
+        localStorage.setItem('nexora_token', access_token);
+        localStorage.setItem('nexora_admin_token', access_token);
+      }
       sessionStorage.setItem('nexora_token', access_token);
       setAdminToken(access_token);
       setUser(loggedUser);
@@ -262,9 +264,11 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   const customerPortalRegister = async (data: {
     name: string;
+    username?: string;
     email: string;
     phone: string;
     password: string;
+    confirm_password?: string;
     preferred_language?: string;
   }): Promise<{ success: boolean; message?: string }> => {
     try {
@@ -296,11 +300,13 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
   };
 
-  const customerPortalLogin = async (identifier: string, password: string): Promise<{ success: boolean; message?: string }> => {
+  const customerPortalLogin = async (identifier: string, password: string, remember_me: boolean = true): Promise<{ success: boolean; message?: string }> => {
     try {
-      const res = await api.customerPortalLogin({ identifier, password });
+      const res = await api.customerPortalLogin({ identifier, password, remember_me });
       const { access_token, user: loggedUser } = res.data;
-      localStorage.setItem('nexora_customer_token', access_token);
+      if (remember_me) {
+        localStorage.setItem('nexora_customer_token', access_token);
+      }
       sessionStorage.setItem('nexora_customer_token', access_token);
       setCustomerToken(access_token);
       try {

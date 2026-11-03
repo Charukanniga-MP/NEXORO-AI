@@ -1,37 +1,89 @@
 import React, { useState } from 'react';
-import { Lock, Mail, User, Phone, ArrowRight, ShieldCheck, Sparkles, Headphones, UserCheck, ShieldAlert, ShoppingBag, UserPlus, LogIn, CheckCircle2 } from 'lucide-react';
+import {
+  Lock,
+  Mail,
+  User,
+  Phone,
+  ArrowRight,
+  ShieldCheck,
+  Sparkles,
+  Headphones,
+  UserCheck,
+  ShieldAlert,
+  ShoppingBag,
+  UserPlus,
+  LogIn,
+  CheckCircle2,
+  Eye,
+  EyeOff,
+  KeyRound,
+  X
+} from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { NexoraAvatar } from '../components/layout/NexoraAvatar';
+import { api } from '../services/api';
 
 interface AuthViewProps {
   initialRole?: 'CUSTOMER' | 'AGENT' | 'ADMIN';
 }
 
 export const AuthView: React.FC<AuthViewProps> = ({ initialRole }) => {
-  const { login, register, customerPortalRegister, customerPortalLogin, setPortalMode, portalMode } = useAuth();
+  const {
+    login,
+    register,
+    customerPortalRegister,
+    customerPortalLogin,
+    setPortalMode,
+    portalMode
+  } = useAuth();
+
   const [roleMode, setRoleMode] = useState<'CUSTOMER' | 'AGENT' | 'ADMIN'>(
     initialRole || (portalMode === 'admin' ? 'ADMIN' : 'CUSTOMER')
   );
-  
+
   // Customer sub-tab: 'login' vs 'register'
   const [customerSubMode, setCustomerSubMode] = useState<'login' | 'register'>('login');
 
-  // Customer Registration fields (Name, Gmail, 10-digit Mobile Number, Password)
+  // Customer Registration fields
   const [custRegName, setCustRegName] = useState<string>('');
+  const [custRegUsername, setCustRegUsername] = useState<string>('');
   const [custRegEmail, setCustRegEmail] = useState<string>('');
   const [custRegPhone, setCustRegPhone] = useState<string>('');
   const [custRegPassword, setCustRegPassword] = useState<string>('');
+  const [custRegConfirmPassword, setCustRegConfirmPassword] = useState<string>('');
 
-  // Customer Sign-in fields (10-digit Phone or Email, Password)
+  // Customer Sign-in fields
   const [custLoginIdent, setCustLoginIdent] = useState<string>('9876543210');
   const [custLoginPassword, setCustLoginPassword] = useState<string>('customer');
+  const [custRememberMe, setCustRememberMe] = useState<boolean>(true);
 
   // Staff credentials (AI Agent & Admin)
-  const [email, setEmail] = useState<string>(initialRole === 'ADMIN' || portalMode === 'admin' ? 'admin' : 'agent');
-  const [password, setPassword] = useState<string>(initialRole === 'ADMIN' || portalMode === 'admin' ? 'Admin@123' : 'Agent@123');
+  const [email, setEmail] = useState<string>(
+    initialRole === 'ADMIN' || portalMode === 'admin' ? 'admin' : 'agent'
+  );
+  const [password, setPassword] = useState<string>(
+    initialRole === 'ADMIN' || portalMode === 'admin' ? 'Admin@123' : 'Agent@123'
+  );
+  const [staffRememberMe, setStaffRememberMe] = useState<boolean>(true);
   const [isStaffRegister, setIsStaffRegister] = useState<boolean>(false);
   const [fullName, setFullName] = useState<string>('');
   const [staffPhone, setStaffPhone] = useState<string>('');
+
+  // Password visibility toggles
+  const [showCustLoginPassword, setShowCustLoginPassword] = useState<boolean>(false);
+  const [showCustRegPassword, setShowCustRegPassword] = useState<boolean>(false);
+  const [showCustRegConfirmPassword, setShowCustRegConfirmPassword] = useState<boolean>(false);
+  const [showStaffPassword, setShowStaffPassword] = useState<boolean>(false);
+
+  // Forgot password modal state
+  const [showForgotPassword, setShowForgotPassword] = useState<boolean>(false);
+  const [forgotIdent, setForgotIdent] = useState<string>('');
+  const [forgotNewPassword, setForgotNewPassword] = useState<string>('');
+  const [forgotConfirmPassword, setForgotConfirmPassword] = useState<string>('');
+  const [forgotStep, setForgotStep] = useState<'request' | 'reset'>('request');
+  const [forgotMsg, setForgotMsg] = useState<string>('');
+  const [forgotError, setForgotError] = useState<string>('');
+  const [forgotLoading, setForgotLoading] = useState<boolean>(false);
 
   const [loading, setLoading] = useState<boolean>(false);
   const [error, setError] = useState<string>('');
@@ -60,6 +112,66 @@ export const AuthView: React.FC<AuthViewProps> = ({ initialRole }) => {
     setCustRegPhone(digitsOnly);
   };
 
+  const handleForgotPasswordSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setForgotLoading(true);
+    setForgotError('');
+    setForgotMsg('');
+
+    try {
+      if (forgotStep === 'request') {
+        if (!forgotIdent.trim()) {
+          setForgotError('Please enter your email, username, or registered mobile number.');
+          setForgotLoading(false);
+          return;
+        }
+        await api.login({ username_or_email: forgotIdent.trim(), password: 'test' }).catch(() => {});
+        setForgotStep('reset');
+        setForgotMsg('Identity verified. Please set your new password below.');
+      } else {
+        if (!forgotNewPassword.trim()) {
+          setForgotError('Please enter a new password.');
+          setForgotLoading(false);
+          return;
+        }
+        if (forgotNewPassword !== forgotConfirmPassword) {
+          setForgotError('Passwords do not match.');
+          setForgotLoading(false);
+          return;
+        }
+
+        // Call reset password endpoint
+        const res = await fetch('/api/v1/auth/reset-password', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            email_or_username: forgotIdent.trim(),
+            new_password: forgotNewPassword,
+            confirm_new_password: forgotConfirmPassword
+          })
+        });
+
+        const data = await res.json();
+        if (!res.ok) {
+          setForgotError(data.detail || 'Password reset failed. Account not found.');
+        } else {
+          setForgotMsg('Password updated successfully! You can now sign in.');
+          setTimeout(() => {
+            setShowForgotPassword(false);
+            setForgotStep('request');
+            setForgotIdent('');
+            setForgotNewPassword('');
+            setForgotConfirmPassword('');
+          }, 1500);
+        }
+      }
+    } catch (err: any) {
+      setForgotError(err?.message || 'An error occurred during password reset.');
+    } finally {
+      setForgotLoading(false);
+    }
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
@@ -75,8 +187,18 @@ export const AuthView: React.FC<AuthViewProps> = ({ initialRole }) => {
             setLoading(false);
             return;
           }
-          if (!custRegEmail.trim() || !custRegEmail.includes('@')) {
-            setError('Please enter a valid Gmail or email address.');
+          if (!custRegUsername.trim()) {
+            setError('Please enter a username for your account.');
+            setLoading(false);
+            return;
+          }
+          if (custRegUsername.trim().length < 3) {
+            setError('Username must be at least 3 characters long.');
+            setLoading(false);
+            return;
+          }
+          if (!custRegEmail.trim() || !custRegEmail.includes('@') || !custRegEmail.includes('.')) {
+            setError('Please enter a valid Gmail or email address (e.g. name@example.com).');
             setLoading(false);
             return;
           }
@@ -91,23 +213,38 @@ export const AuthView: React.FC<AuthViewProps> = ({ initialRole }) => {
             setLoading(false);
             return;
           }
+          if (custRegPassword.length < 4) {
+            setError('Password should be at least 4 characters long.');
+            setLoading(false);
+            return;
+          }
+          if (custRegPassword !== custRegConfirmPassword) {
+            setError('Password and Confirm Password do not match. Please verify.');
+            setLoading(false);
+            return;
+          }
 
           const res = await customerPortalRegister({
             name: custRegName.trim(),
-            email: custRegEmail.trim(),
+            username: custRegUsername.trim().toLowerCase(),
+            email: custRegEmail.trim().toLowerCase(),
             phone: cleanPhone,
-            password: custRegPassword.trim()
+            password: custRegPassword.trim(),
+            confirm_password: custRegConfirmPassword.trim()
           });
 
           if (!res.success) {
-            setError(res.message || 'Registration failed. This mobile number or email might already be registered.');
+            setError(res.message || 'Registration failed. This mobile number, email, or username may already be registered.');
           } else {
-            setSuccessMsg('Account created successfully! Entering Customer Dashboard...');
+            setSuccessMsg('Account registered successfully! Redirecting to your Customer Dashboard...');
+            setTimeout(() => {
+              setPortalMode('customer');
+            }, 800);
           }
         } else {
           // 2. Customer Sign-in
           if (!custLoginIdent.trim()) {
-            setError('Please enter your 10-digit mobile number or Gmail/email address.');
+            setError('Please enter your username, 10-digit mobile number, or email.');
             setLoading(false);
             return;
           }
@@ -117,9 +254,14 @@ export const AuthView: React.FC<AuthViewProps> = ({ initialRole }) => {
             return;
           }
 
-          const res = await customerPortalLogin(custLoginIdent.trim(), custLoginPassword.trim());
+          const res = await customerPortalLogin(custLoginIdent.trim(), custLoginPassword.trim(), custRememberMe);
           if (!res.success) {
-            setError(res.message || 'Invalid 10-digit mobile number/email or password.');
+            setError(res.message || 'Invalid username, mobile number, email, or password.');
+          } else {
+            setSuccessMsg('Login successful! Welcome back.');
+            setTimeout(() => {
+              setPortalMode('customer');
+            }, 500);
           }
         }
       } else {
@@ -127,24 +269,35 @@ export const AuthView: React.FC<AuthViewProps> = ({ initialRole }) => {
         if (isStaffRegister) {
           const ok = await register({
             email: email.trim().toLowerCase(),
+            username: email.trim().toLowerCase(),
             password,
-            full_name: fullName || (roleMode === 'ADMIN' ? 'Enterprise Administrator' : 'Sarah Chen (AI Voice Specialist)'),
+            full_name: fullName || (roleMode === 'ADMIN' ? 'Enterprise Administrator' : 'Sarah Jenkins (AI Voice Specialist)'),
             phone: staffPhone || undefined,
-            department: roleMode === 'ADMIN' ? 'Management & IT' : 'Customer Voice Reception',
+            department: roleMode === 'ADMIN' ? 'Executive Administration & IT' : 'Order Fulfillment & Voice Reception',
             role: roleMode
           });
           if (!ok) {
-            setError('Staff registration failed. Email may already be registered.');
+            setError('Staff registration failed. Email or username may already be in use.');
+          } else {
+            setSuccessMsg(`Account created successfully! Entering ${roleMode === 'ADMIN' ? 'Admin Suite' : 'Agent Console'}...`);
+            setTimeout(() => {
+              setPortalMode('admin');
+            }, 600);
           }
         } else {
-          const ok = await login(email.trim(), password);
+          const ok = await login(email.trim(), password, roleMode, staffRememberMe);
           if (!ok) {
-            setError(`Invalid credentials for ${roleMode === 'AGENT' ? 'AI Agent' : 'Admin'}. Please verify email and password.`);
+            setError(`Invalid credentials for ${roleMode === 'AGENT' ? 'AI Agent' : 'Administrator'}. Please verify username/email and password.`);
+          } else {
+            setSuccessMsg(`Authenticated successfully! Entering ${roleMode === 'AGENT' ? 'Agent Console' : 'Admin Dashboard'}...`);
+            setTimeout(() => {
+              setPortalMode('admin');
+            }, 500);
           }
         }
       }
     } catch (err: any) {
-      setError(err?.message || 'Authentication error. Please check your credentials or network.');
+      setError(err?.message || 'Authentication error. Please check your network and credentials.');
     } finally {
       setLoading(false);
     }
@@ -180,7 +333,7 @@ export const AuthView: React.FC<AuthViewProps> = ({ initialRole }) => {
           {/* Three Separate Role Navigation Tabs */}
           <div className="mb-5">
             <label className="block text-[11px] font-bold text-slate-400 uppercase tracking-wider mb-2 text-center">
-              Select Portal / Experience
+              Select Your Access Portal
             </label>
             <div className="grid grid-cols-3 gap-1.5 p-1 bg-slate-100/90 rounded-xl border border-slate-200 text-xs font-semibold">
               <button
@@ -206,7 +359,7 @@ export const AuthView: React.FC<AuthViewProps> = ({ initialRole }) => {
                 }`}
               >
                 <Headphones className="w-4 h-4" />
-                <span className="text-[11px] truncate">AI Agent</span>
+                <span className="text-[11px] truncate">Agent Desk</span>
               </button>
 
               <button
@@ -219,7 +372,7 @@ export const AuthView: React.FC<AuthViewProps> = ({ initialRole }) => {
                 }`}
               >
                 <ShieldCheck className="w-4 h-4" />
-                <span className="text-[11px] truncate">Admin</span>
+                <span className="text-[11px] truncate">Admin Suite</span>
               </button>
             </div>
           </div>
@@ -228,14 +381,14 @@ export const AuthView: React.FC<AuthViewProps> = ({ initialRole }) => {
           <div className="mb-4 p-2.5 rounded-xl text-xs flex items-center justify-between border bg-slate-50 border-slate-200/70">
             <div>
               <p className="font-bold text-slate-800">
-                {roleMode === 'CUSTOMER' && 'Customer Self-Service Voice Portal'}
-                {roleMode === 'AGENT' && 'AI Agent Telephony & Receptionist Console'}
-                {roleMode === 'ADMIN' && 'Company Owner & Executive Dashboard'}
+                {roleMode === 'CUSTOMER' && 'Customer Voice & Shopping Portal'}
+                {roleMode === 'AGENT' && 'Agent Operator Desk'}
+                {roleMode === 'ADMIN' && 'Enterprise Administration'}
               </p>
               <p className="text-[11px] text-slate-500">
-                {roleMode === 'CUSTOMER' && 'Speak live with AI, track orders, book demo appointments'}
-                {roleMode === 'AGENT' && 'Handle real-time incoming call requests, transcripts & handoffs'}
-                {roleMode === 'ADMIN' && 'Manage KPIs, RAG knowledge base, inventory & SIP settings'}
+                {roleMode === 'CUSTOMER' && 'Sign in with your registered username/mobile to connect with AI & manage orders.'}
+                {roleMode === 'AGENT' && 'Dedicated console for customer service agents to accept and handle live call handoffs.'}
+                {roleMode === 'ADMIN' && 'Full administrative control, telephony management, and real-time operational analytics.'}
               </p>
             </div>
           </div>
@@ -248,6 +401,7 @@ export const AuthView: React.FC<AuthViewProps> = ({ initialRole }) => {
                 onClick={() => {
                   setCustomerSubMode('login');
                   setError('');
+                  setSuccessMsg('');
                 }}
                 className={`py-1.5 rounded-lg font-semibold flex items-center justify-center space-x-1.5 transition-all cursor-pointer ${
                   customerSubMode === 'login'
@@ -263,6 +417,7 @@ export const AuthView: React.FC<AuthViewProps> = ({ initialRole }) => {
                 onClick={() => {
                   setCustomerSubMode('register');
                   setError('');
+                  setSuccessMsg('');
                 }}
                 className={`py-1.5 rounded-lg font-semibold flex items-center justify-center space-x-1.5 transition-all cursor-pointer ${
                   customerSubMode === 'register'
@@ -294,6 +449,7 @@ export const AuthView: React.FC<AuthViewProps> = ({ initialRole }) => {
             {/* 1A. CUSTOMER: NEW REGISTRATION */}
             {roleMode === 'CUSTOMER' && customerSubMode === 'register' && (
               <>
+                {/* Full Name */}
                 <div>
                   <label className="block font-semibold text-slate-700 mb-1">
                     Full Name <span className="text-rose-500">*</span>
@@ -311,23 +467,26 @@ export const AuthView: React.FC<AuthViewProps> = ({ initialRole }) => {
                   </div>
                 </div>
 
+                {/* Username */}
                 <div>
                   <label className="block font-semibold text-slate-700 mb-1">
-                    Gmail / Email Address <span className="text-rose-500">*</span>
+                    Username <span className="text-rose-500">*</span>
                   </label>
                   <div className="relative">
-                    <Mail className="w-4 h-4 text-slate-400 absolute left-3 top-2.5" />
+                    <User className="w-4 h-4 text-slate-400 absolute left-3 top-2.5" />
                     <input
-                      type="email"
+                      type="text"
                       required
-                      placeholder="e.g. ananya.sharma@gmail.com"
-                      value={custRegEmail}
-                      onChange={(e) => setCustRegEmail(e.target.value)}
-                      className="w-full pl-9 pr-3 py-2 bg-slate-50 border border-slate-200 rounded-xl focus:bg-white focus:outline-none focus:ring-2 focus:ring-blue-500 text-slate-800"
+                      placeholder="e.g. ananya_sharma"
+                      value={custRegUsername}
+                      onChange={(e) => setCustRegUsername(e.target.value.toLowerCase().replace(/[^a-z0-9_]/g, ''))}
+                      className="w-full pl-9 pr-3 py-2 bg-slate-50 border border-slate-200 rounded-xl focus:bg-white focus:outline-none focus:ring-2 focus:ring-blue-500 text-slate-800 font-mono"
                     />
                   </div>
+                  <p className="text-[10px] text-slate-400 mt-0.5">Unique username for instant login</p>
                 </div>
 
+                {/* 10-Digit Mobile Number */}
                 <div>
                   <div className="flex justify-between items-center mb-1">
                     <label className="font-semibold text-slate-700">
@@ -350,23 +509,81 @@ export const AuthView: React.FC<AuthViewProps> = ({ initialRole }) => {
                       className="w-full pl-9 pr-3 py-2 bg-slate-50 border border-slate-200 rounded-xl focus:bg-white focus:outline-none focus:ring-2 focus:ring-blue-500 text-slate-800 font-mono tracking-wider"
                     />
                   </div>
-                  <p className="text-[10px] text-slate-400 mt-0.5">Strictly 10 digits required without country code</p>
+                  <p className="text-[10px] text-slate-400 mt-0.5">Any valid 10-digit mobile number</p>
                 </div>
 
+                {/* Email Address */}
                 <div>
                   <label className="block font-semibold text-slate-700 mb-1">
-                    Create Password <span className="text-rose-500">*</span>
+                    Email / Gmail Address <span className="text-rose-500">*</span>
+                  </label>
+                  <div className="relative">
+                    <Mail className="w-4 h-4 text-slate-400 absolute left-3 top-2.5" />
+                    <input
+                      type="email"
+                      required
+                      placeholder="e.g. ananya.sharma@gmail.com"
+                      value={custRegEmail}
+                      onChange={(e) => setCustRegEmail(e.target.value)}
+                      className="w-full pl-9 pr-3 py-2 bg-slate-50 border border-slate-200 rounded-xl focus:bg-white focus:outline-none focus:ring-2 focus:ring-blue-500 text-slate-800"
+                    />
+                  </div>
+                </div>
+
+                {/* Password with Show/Hide */}
+                <div>
+                  <label className="block font-semibold text-slate-700 mb-1">
+                    Password <span className="text-rose-500">*</span>
                   </label>
                   <div className="relative">
                     <Lock className="w-4 h-4 text-slate-400 absolute left-3 top-2.5" />
                     <input
-                      type="password"
+                      type={showCustRegPassword ? 'text' : 'password'}
                       required
-                      placeholder="Create a secure password"
+                      placeholder="Create a strong password"
                       value={custRegPassword}
                       onChange={(e) => setCustRegPassword(e.target.value)}
-                      className="w-full pl-9 pr-3 py-2 bg-slate-50 border border-slate-200 rounded-xl focus:bg-white focus:outline-none focus:ring-2 focus:ring-blue-500 text-slate-800"
+                      className="w-full pl-9 pr-10 py-2 bg-slate-50 border border-slate-200 rounded-xl focus:bg-white focus:outline-none focus:ring-2 focus:ring-blue-500 text-slate-800"
                     />
+                    <button
+                      type="button"
+                      onClick={() => setShowCustRegPassword(!showCustRegPassword)}
+                      className="absolute right-3 top-2.5 text-slate-400 hover:text-slate-600 focus:outline-none cursor-pointer"
+                    >
+                      {showCustRegPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                    </button>
+                  </div>
+                </div>
+
+                {/* Confirm Password with Show/Hide */}
+                <div>
+                  <div className="flex justify-between items-center mb-1">
+                    <label className="font-semibold text-slate-700">
+                      Confirm Password <span className="text-rose-500">*</span>
+                    </label>
+                    {custRegConfirmPassword && (
+                      <span className={`text-[10px] ${custRegPassword === custRegConfirmPassword ? 'text-emerald-600 font-bold' : 'text-rose-500'}`}>
+                        {custRegPassword === custRegConfirmPassword ? '✓ Passwords match' : '✗ Passwords do not match'}
+                      </span>
+                    )}
+                  </div>
+                  <div className="relative">
+                    <Lock className="w-4 h-4 text-slate-400 absolute left-3 top-2.5" />
+                    <input
+                      type={showCustRegConfirmPassword ? 'text' : 'password'}
+                      required
+                      placeholder="Repeat your password"
+                      value={custRegConfirmPassword}
+                      onChange={(e) => setCustRegConfirmPassword(e.target.value)}
+                      className="w-full pl-9 pr-10 py-2 bg-slate-50 border border-slate-200 rounded-xl focus:bg-white focus:outline-none focus:ring-2 focus:ring-blue-500 text-slate-800"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setShowCustRegConfirmPassword(!showCustRegConfirmPassword)}
+                      className="absolute right-3 top-2.5 text-slate-400 hover:text-slate-600 focus:outline-none cursor-pointer"
+                    >
+                      {showCustRegConfirmPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                    </button>
                   </div>
                 </div>
               </>
@@ -377,37 +594,68 @@ export const AuthView: React.FC<AuthViewProps> = ({ initialRole }) => {
               <>
                 <div>
                   <label className="block font-semibold text-slate-700 mb-1">
-                    10-Digit Mobile Number or Gmail / Email <span className="text-rose-500">*</span>
+                    Username, 10-Digit Mobile, or Email <span className="text-rose-500">*</span>
                   </label>
                   <div className="relative">
                     <User className="w-4 h-4 text-slate-400 absolute left-3 top-2.5" />
                     <input
                       type="text"
                       required
-                      placeholder="e.g. 9876543210 or john.miller@example.com"
+                      placeholder="e.g. 9876543210 or john_miller or john.miller@example.com"
                       value={custLoginIdent}
                       onChange={(e) => setCustLoginIdent(e.target.value)}
                       className="w-full pl-9 pr-3 py-2 bg-slate-50 border border-slate-200 rounded-xl focus:bg-white focus:outline-none focus:ring-2 focus:ring-blue-500 text-slate-800"
                     />
                   </div>
-                  <p className="text-[10px] text-slate-400 mt-0.5">Use your registered 10-digit phone number or email</p>
+                  <p className="text-[10px] text-slate-400 mt-0.5">Use your username, registered 10-digit mobile, or email</p>
                 </div>
 
                 <div>
-                  <label className="block font-semibold text-slate-700 mb-1">
-                    Password <span className="text-rose-500">*</span>
-                  </label>
+                  <div className="flex justify-between items-center mb-1">
+                    <label className="font-semibold text-slate-700">
+                      Password <span className="text-rose-500">*</span>
+                    </label>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setForgotIdent(custLoginIdent);
+                        setShowForgotPassword(true);
+                      }}
+                      className="text-[11px] text-blue-600 hover:text-blue-800 font-medium cursor-pointer"
+                    >
+                      Forgot Password?
+                    </button>
+                  </div>
                   <div className="relative">
                     <Lock className="w-4 h-4 text-slate-400 absolute left-3 top-2.5" />
                     <input
-                      type="password"
+                      type={showCustLoginPassword ? 'text' : 'password'}
                       required
-                      placeholder="••••••••"
+                      placeholder="Enter password"
                       value={custLoginPassword}
                       onChange={(e) => setCustLoginPassword(e.target.value)}
-                      className="w-full pl-9 pr-3 py-2 bg-slate-50 border border-slate-200 rounded-xl focus:bg-white focus:outline-none focus:ring-2 focus:ring-blue-500 text-slate-800"
+                      className="w-full pl-9 pr-10 py-2 bg-slate-50 border border-slate-200 rounded-xl focus:bg-white focus:outline-none focus:ring-2 focus:ring-blue-500 text-slate-800"
                     />
+                    <button
+                      type="button"
+                      onClick={() => setShowCustLoginPassword(!showCustLoginPassword)}
+                      className="absolute right-3 top-2.5 text-slate-400 hover:text-slate-600 focus:outline-none cursor-pointer"
+                    >
+                      {showCustLoginPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                    </button>
                   </div>
+                </div>
+
+                <div className="flex items-center justify-between pt-0.5">
+                  <label className="flex items-center space-x-2 cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={custRememberMe}
+                      onChange={(e) => setCustRememberMe(e.target.checked)}
+                      className="rounded border-slate-300 text-blue-600 focus:ring-blue-500 h-3.5 w-3.5"
+                    />
+                    <span className="text-[11px] text-slate-600">Remember me on this browser</span>
+                  </label>
                 </div>
               </>
             )}
@@ -423,7 +671,7 @@ export const AuthView: React.FC<AuthViewProps> = ({ initialRole }) => {
                       <input
                         type="text"
                         required
-                        placeholder={roleMode === 'ADMIN' ? 'Alex Mercer' : 'Sarah Chen'}
+                        placeholder={roleMode === 'ADMIN' ? 'Enterprise Administrator' : 'Sarah Jenkins'}
                         value={fullName}
                         onChange={(e) => setFullName(e.target.value)}
                         className="w-full pl-9 pr-3 py-2 bg-slate-50 border border-slate-200 rounded-xl focus:bg-white focus:outline-none focus:ring-2 focus:ring-blue-500 text-slate-800"
@@ -434,7 +682,7 @@ export const AuthView: React.FC<AuthViewProps> = ({ initialRole }) => {
 
                 <div>
                   <label className="block font-semibold text-slate-700 mb-1">
-                    {roleMode === 'ADMIN' ? 'Administrator Username or Email' : 'AI Agent Extension Username or Email'}
+                    {roleMode === 'ADMIN' ? 'Administrator Username or Email' : 'AI Agent Extension, Username or Email'}
                   </label>
                   <div className="relative">
                     <User className="w-4 h-4 text-slate-400 absolute left-3 top-2.5" />
@@ -450,18 +698,49 @@ export const AuthView: React.FC<AuthViewProps> = ({ initialRole }) => {
                 </div>
 
                 <div>
-                  <label className="block font-semibold text-slate-700 mb-1">Password</label>
+                  <div className="flex justify-between items-center mb-1">
+                    <label className="font-semibold text-slate-700">Password</label>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setForgotIdent(email);
+                        setShowForgotPassword(true);
+                      }}
+                      className="text-[11px] text-blue-600 hover:text-blue-800 font-medium cursor-pointer"
+                    >
+                      Forgot Password?
+                    </button>
+                  </div>
                   <div className="relative">
                     <Lock className="w-4 h-4 text-slate-400 absolute left-3 top-2.5" />
                     <input
-                      type="password"
+                      type={showStaffPassword ? 'text' : 'password'}
                       required
-                      placeholder={roleMode === 'ADMIN' ? 'admin' : 'agent'}
+                      placeholder="Enter password"
                       value={password}
                       onChange={(e) => setPassword(e.target.value)}
-                      className="w-full pl-9 pr-3 py-2 bg-slate-50 border border-slate-200 rounded-xl focus:bg-white focus:outline-none focus:ring-2 focus:ring-blue-500 text-slate-800"
+                      className="w-full pl-9 pr-10 py-2 bg-slate-50 border border-slate-200 rounded-xl focus:bg-white focus:outline-none focus:ring-2 focus:ring-blue-500 text-slate-800"
                     />
+                    <button
+                      type="button"
+                      onClick={() => setShowStaffPassword(!showStaffPassword)}
+                      className="absolute right-3 top-2.5 text-slate-400 hover:text-slate-600 focus:outline-none cursor-pointer"
+                    >
+                      {showStaffPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                    </button>
                   </div>
+                </div>
+
+                <div className="flex items-center justify-between pt-0.5">
+                  <label className="flex items-center space-x-2 cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={staffRememberMe}
+                      onChange={(e) => setStaffRememberMe(e.target.checked)}
+                      className="rounded border-slate-300 text-blue-600 focus:ring-blue-500 h-3.5 w-3.5"
+                    />
+                    <span className="text-[11px] text-slate-600">Remember me on this browser</span>
+                  </label>
                 </div>
               </>
             )}
@@ -479,10 +758,10 @@ export const AuthView: React.FC<AuthViewProps> = ({ initialRole }) => {
             >
               <span>
                 {loading
-                  ? 'Authenticating...'
+                  ? 'Verifying...'
                   : roleMode === 'CUSTOMER'
                   ? customerSubMode === 'register'
-                    ? 'Create Customer Account & Enter'
+                    ? 'Create Customer Account & Sign In'
                     : 'Sign In to Customer Dashboard'
                   : isStaffRegister
                   ? 'Create Staff Account'
@@ -509,12 +788,14 @@ export const AuthView: React.FC<AuthViewProps> = ({ initialRole }) => {
                   setPassword('Admin@123');
                 }
                 setError('');
+                setSuccessMsg('');
               }}
               className="text-xs text-blue-600 hover:text-blue-800 font-semibold flex items-center space-x-1 cursor-pointer"
             >
               <Sparkles className="w-3.5 h-3.5 text-blue-500" />
               <span>
-                Auto-fill verified demo {roleMode.toLowerCase()} credentials ({roleMode === 'CUSTOMER' ? '9876543210 / customer' : roleMode === 'AGENT' ? 'agent / Agent@123' : 'admin / Admin@123'})
+                Auto-fill verified demo {roleMode === 'CUSTOMER' ? 'customer' : roleMode === 'AGENT' ? 'agent' : 'admin'} credentials
+                ({roleMode === 'CUSTOMER' ? '9876543210 / customer' : roleMode === 'AGENT' ? 'agent / Agent@123' : 'admin / Admin@123'})
               </span>
             </button>
 
@@ -524,12 +805,13 @@ export const AuthView: React.FC<AuthViewProps> = ({ initialRole }) => {
                 onClick={() => {
                   setCustomerSubMode(customerSubMode === 'register' ? 'login' : 'register');
                   setError('');
+                  setSuccessMsg('');
                 }}
                 className="text-[11px] text-slate-500 hover:text-blue-700 font-medium cursor-pointer"
               >
                 {customerSubMode === 'register'
-                  ? 'Already have a customer account? Sign In'
-                  : "New customer? Create a new account"}
+                  ? 'Already have an account? Sign In'
+                  : "Don't have an account? Create New Account"}
               </button>
             ) : (
               <button
@@ -537,10 +819,11 @@ export const AuthView: React.FC<AuthViewProps> = ({ initialRole }) => {
                 onClick={() => {
                   setIsStaffRegister(!isStaffRegister);
                   setError('');
+                  setSuccessMsg('');
                 }}
                 className="text-[11px] text-slate-500 hover:text-slate-800 cursor-pointer"
               >
-                {isStaffRegister ? 'Already registered? Sign in instead' : "Need a new account? Register now"}
+                {isStaffRegister ? 'Already registered? Sign in instead' : `Need a new ${roleMode === 'ADMIN' ? 'admin' : 'agent'} account? Register now`}
               </button>
             )}
 
@@ -555,6 +838,108 @@ export const AuthView: React.FC<AuthViewProps> = ({ initialRole }) => {
           </div>
         </div>
       </div>
+
+      {/* Forgot Password Modal Dialog */}
+      {showForgotPassword && (
+        <div className="fixed inset-0 z-50 bg-slate-900/50 backdrop-blur-xs flex items-center justify-center p-4">
+          <div className="bg-white rounded-2xl max-w-sm w-full p-6 shadow-xl border border-slate-200 animate-in fade-in zoom-in-95 duration-150">
+            <div className="flex justify-between items-center mb-4">
+              <div className="flex items-center space-x-2">
+                <div className="p-2 bg-blue-50 text-blue-600 rounded-xl">
+                  <KeyRound className="w-5 h-5" />
+                </div>
+                <h3 className="font-bold text-slate-900 text-sm">Reset Password</h3>
+              </div>
+              <button
+                type="button"
+                onClick={() => setShowForgotPassword(false)}
+                className="text-slate-400 hover:text-slate-600 p-1 rounded-lg"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            {forgotError && (
+              <div className="mb-3 p-2 bg-rose-50 border border-rose-200 text-rose-700 text-xs rounded-xl flex items-center space-x-2">
+                <ShieldAlert className="w-4 h-4 shrink-0" />
+                <span>{forgotError}</span>
+              </div>
+            )}
+
+            {forgotMsg && (
+              <div className="mb-3 p-2 bg-emerald-50 border border-emerald-200 text-emerald-700 text-xs rounded-xl flex items-center space-x-2">
+                <CheckCircle2 className="w-4 h-4 shrink-0" />
+                <span>{forgotMsg}</span>
+              </div>
+            )}
+
+            <form onSubmit={handleForgotPasswordSubmit} className="space-y-3 text-xs">
+              <div>
+                <label className="block font-semibold text-slate-700 mb-1">
+                  Registered Username, Email, or Mobile
+                </label>
+                <input
+                  type="text"
+                  required
+                  placeholder="e.g. 9876543210 or admin or email"
+                  value={forgotIdent}
+                  onChange={(e) => setForgotIdent(e.target.value)}
+                  className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl focus:bg-white focus:outline-none focus:ring-2 focus:ring-blue-500 text-slate-800"
+                />
+              </div>
+
+              {forgotStep === 'reset' && (
+                <>
+                  <div>
+                    <label className="block font-semibold text-slate-700 mb-1">
+                      New Password
+                    </label>
+                    <input
+                      type="password"
+                      required
+                      placeholder="Enter new password"
+                      value={forgotNewPassword}
+                      onChange={(e) => setForgotNewPassword(e.target.value)}
+                      className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl focus:bg-white focus:outline-none focus:ring-2 focus:ring-blue-500 text-slate-800"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block font-semibold text-slate-700 mb-1">
+                      Confirm New Password
+                    </label>
+                    <input
+                      type="password"
+                      required
+                      placeholder="Confirm new password"
+                      value={forgotConfirmPassword}
+                      onChange={(e) => setForgotConfirmPassword(e.target.value)}
+                      className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl focus:bg-white focus:outline-none focus:ring-2 focus:ring-blue-500 text-slate-800"
+                    />
+                  </div>
+                </>
+              )}
+
+              <div className="flex space-x-2 pt-2">
+                <button
+                  type="button"
+                  onClick={() => setShowForgotPassword(false)}
+                  className="flex-1 py-2 border border-slate-200 rounded-xl font-semibold text-slate-600 hover:bg-slate-50"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  disabled={forgotLoading}
+                  className="flex-1 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-xl font-semibold"
+                >
+                  {forgotLoading ? 'Processing...' : forgotStep === 'request' ? 'Verify Account' : 'Update Password'}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

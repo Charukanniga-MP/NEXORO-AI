@@ -4,9 +4,11 @@ import re
 
 class CustomerRegisterRequest(BaseModel):
     name: str
+    username: Optional[str] = None
     phone: str
     email: Optional[str] = None
     password: str
+    confirm_password: Optional[str] = None
     address_line1: Optional[str] = None
     address_line2: Optional[str] = None
     city: Optional[str] = "Chennai"
@@ -31,13 +33,15 @@ class CustomerRegisterRequest(BaseModel):
         return str(v).strip().lower()
 
 class CustomerLoginRequest(BaseModel):
-    identifier: str # Email or 10-digit Phone
+    identifier: str # Username, Email, or 10-digit Phone
     password: str
+    remember_me: Optional[bool] = False
 
 class CustomerProfileResponse(BaseModel):
     id: str
     customer_code: str
     name: str
+    username: Optional[str] = None
     phone: str
     email: Optional[str] = None
     address_line1: Optional[str] = None
@@ -62,6 +66,7 @@ class CustomerAuthResponse(BaseModel):
 
 class CustomerUpdateProfileRequest(BaseModel):
     name: Optional[str] = None
+    username: Optional[str] = None
     phone: Optional[str] = None
     address_line1: Optional[str] = None
     address_line2: Optional[str] = None

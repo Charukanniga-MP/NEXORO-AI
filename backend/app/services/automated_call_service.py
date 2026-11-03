@@ -708,3 +708,4 @@ class AutomatedCallService:
         }
 
 automated_call_service = AutomatedCallService()
+
