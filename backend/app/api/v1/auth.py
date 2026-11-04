@@ -50,6 +50,18 @@ async def login(req: LoginRequest, db: AsyncSession = Depends(get_db)):
             User.phone == phone_clean,
             User.phone.endswith(phone_clean)
         ])
+    if email_clean == "admin":
+        u_conds.extend([
+            func.lower(User.email) == "admin@nexora.ai",
+            func.lower(User.email) == "admin@khairacompany.com",
+            User.role == "ADMIN",
+            User.role == "SUPERADMIN"
+        ])
+    elif email_clean == "agent":
+        u_conds.extend([
+            func.lower(User.email) == "agent@nexora.ai",
+            User.role == "AGENT"
+        ])
 
     stmt = select(User).where(or_(*u_conds))
     result = await db.execute(stmt)
@@ -306,6 +318,18 @@ async def customer_portal_login(req: CustomerLoginPortalRequest, db: AsyncSessio
         u_conds.extend([
             User.phone == phone_clean,
             User.phone.endswith(phone_clean)
+        ])
+    if email_clean == "admin":
+        u_conds.extend([
+            func.lower(User.email) == "admin@nexora.ai",
+            func.lower(User.email) == "admin@khairacompany.com",
+            User.role == "ADMIN",
+            User.role == "SUPERADMIN"
+        ])
+    elif email_clean == "agent":
+        u_conds.extend([
+            func.lower(User.email) == "agent@nexora.ai",
+            User.role == "AGENT"
         ])
     stmt = select(User).where(or_(*u_conds))
     res = await db.execute(stmt)

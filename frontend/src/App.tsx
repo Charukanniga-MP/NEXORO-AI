@@ -21,11 +21,12 @@ import { AuthView } from './views/AuthView';
 import { CustomerDashboardView } from './views/CustomerDashboardView';
 import { AgentConsoleView } from './views/AgentConsoleView';
 import { CustomerStoreView } from './views/CustomerStoreView';
+import { LandingPageView } from './views/LandingPageView';
 import { AICallingManagementView } from './views/AICallingManagementView';
 import { Bell, AlertCircle, X, Headphones, Eye, RotateCcw } from 'lucide-react';
 
 const MainApp: React.FC = () => {
-  const { user, token, adminToken, loading, setPendingHandoffsCount, portalMode, setPortalMode } = useAuth();
+  const { user, token, adminToken, customerToken, customer, loading, setPendingHandoffsCount, portalMode, setPortalMode } = useAuth();
   const [currentTab, setCurrentTab] = useState<string>('dashboard');
   const [liveHandoffAlert, setLiveHandoffAlert] = useState<any | null>(null);
 
@@ -86,13 +87,43 @@ const MainApp: React.FC = () => {
     );
   }
 
-  // 1. Customer Shopping Portal
-  if (portalMode === 'customer' || portalMode === 'store') {
+  // 1. Landing Page (Public presentation & entry point)
+  if (portalMode === 'landing') {
+    return (
+      <LandingPageView
+        onOpenAuth={(role) => {
+          if (role === 'CUSTOMER') setPortalMode('customer');
+          else if (role === 'AGENT') setPortalMode('agent');
+          else setPortalMode('admin');
+        }}
+      />
+    );
+  }
+
+  // 2. Customer Shopping Store (Public or Customer browsing)
+  if (portalMode === 'store') {
     return <CustomerStoreView />;
   }
 
-  // 2. Admin & Staff Portal (Protected - requires staff/admin session)
-  const isStaffAuthenticated = Boolean(adminToken && user && ['ADMIN', 'SUPERADMIN', 'AGENT'].includes(user.role?.toUpperCase()));
+  // 3. Customer Dashboard (Dedicated portal for logged-in customers)
+  if (portalMode === 'customer') {
+    if (customerToken || customer) {
+      return <CustomerDashboardView />;
+    }
+    return <AuthView initialRole="CUSTOMER" />;
+  }
+
+  // 4. Dedicated AI Agent Operator Console
+  if (portalMode === 'agent') {
+    const isAgent = Boolean(adminToken && user && ['AGENT', 'ADMIN', 'SUPERADMIN'].includes(user.role?.toUpperCase()));
+    if (isAgent) {
+      return <AgentConsoleView />;
+    }
+    return <AuthView initialRole="AGENT" />;
+  }
+
+  // 5. Admin & Staff Portal (Protected - requires staff/admin session)
+  const isStaffAuthenticated = Boolean(adminToken && user && ['ADMIN', 'SUPERADMIN'].includes(user.role?.toUpperCase()));
   if (!isStaffAuthenticated) {
     return <AuthView initialRole="ADMIN" />;
   }

@@ -326,6 +326,170 @@ async def cancel_call_request(call_id: str, db: AsyncSession = Depends(get_db)):
     await call_signaling.notify_call_rejected(call_id, reason="Customer cancelled call")
     return {"status": "CANCELLED", "call_id": call_id}
 
+
+class AgentCallCustomerRequest(BaseModel):
+    phone: str
+    customer_name: Optional[str] = None
+    customer_id: Optional[str] = None
+    language: Optional[str] = "en"
+    purpose: Optional[str] = "Order Confirmation & Support"
+    agent_id: Optional[str] = None
+    agent_name: Optional[str] = None
+
+@router.post("/agent-call-customer")
+async def agent_call_customer(
+    req: AgentCallCustomerRequest,
+    db: AsyncSession = Depends(get_db)
+):
+    """
+    FLOW B: AI Agent initiates an outbound voice call to a Customer.
+    Checks if customer is online (has active Customer Dashboard WebSocket).
+    If offline: does not fake connection; schedules a callback request and returns OFFLINE.
+    If online: sets call to RINGING and notifies customer socket in real time.
+    """
+    import re
+    clean_phone = req.phone.strip()
+    digits = re.sub(r'\D', '', clean_phone)
+    if len(digits) == 12 and digits.startswith('91'):
+        digits = digits[2:]
+    phone_10 = digits[-10:] if len(digits) >= 10 else digits
+
+    # Find customer in DB
+    customer = None
+    if req.customer_id:
+        stmt = select(Customer).where(Customer.id == req.customer_id)
+        res = await db.execute(stmt)
+        customer = res.scalars().first()
+    if not customer and phone_10:
+        stmt = select(Customer).where(Customer.phone.endswith(phone_10))
+        res = await db.execute(stmt)
+        customer = res.scalars().first()
+
+    customer_name = req.customer_name or (customer.name if customer else "Valued Customer")
+    language = req.language or (customer.preferred_language if customer else "en")
+    agent_name = req.agent_name or "Sarah Jenkins (AI Voice Specialist)"
+
+    # Verify if customer is currently online
+    is_online = call_signaling.is_customer_online(phone_10) or (customer and call_signaling.is_customer_online(customer.id))
+    if not is_online:
+        # Schedule a callback record
+        try:
+            from app.models.appointment import Appointment
+            cb_appt = Appointment(
+                id=str(uuid.uuid4()),
+                customer_id=customer.id if customer else None,
+                service_name=f"Agent Callback: {req.purpose}",
+                scheduled_time=datetime.utcnow(),
+                status="SCHEDULED",
+                notes=f"Automatic callback scheduled because customer {clean_phone} was offline during agent outbound call attempt."
+            )
+            db.add(cb_appt)
+            await db.commit()
+        except Exception as e:
+            logger.warning(f"Error logging callback appointment: {e}")
+
+        return {
+            "status": "OFFLINE",
+            "online": False,
+            "message": f"Customer {clean_phone} ({customer_name}) is currently offline. A callback request has been logged.",
+            "call_id": None
+        }
+
+    # Customer is online: initialize outbound ringing call
+    call_id = str(uuid.uuid4())
+    call = Call(
+        id=call_id,
+        direction="OUTBOUND",
+        call_type="OUTBOUND",
+        caller_number="+91-44-6789-0100",
+        receiver_number=clean_phone,
+        customer_id=customer.id if customer else None,
+        agent_id=req.agent_id,
+        agent_name=agent_name,
+        category="AGENT_OUTBOUND",
+        call_reason=req.purpose,
+        status="RINGING",
+        language=language,
+        detected_languages=[language],
+        start_time=datetime.utcnow(),
+        transcript=[]
+    )
+    db.add(call)
+    await db.commit()
+    await db.refresh(call)
+
+    call_payload = {
+        "id": call.id,
+        "call_id": call.id,
+        "caller_number": "+91-44-6789-0100",
+        "receiver_number": clean_phone,
+        "customer_name": customer_name,
+        "customer_id": customer.id if customer else None,
+        "agent_name": agent_name,
+        "agent_id": req.agent_id,
+        "purpose": req.purpose,
+        "language": language,
+        "status": "RINGING",
+        "direction": "OUTBOUND",
+        "created_at": call.start_time.isoformat()
+    }
+
+    # Real-time notification to customer socket
+    await call_signaling.notify_agent_calling_customer(phone_10, call_payload)
+    if customer:
+        await call_signaling.notify_agent_calling_customer(customer.id, call_payload)
+
+    return {
+        "status": "RINGING",
+        "online": True,
+        "call_id": call.id,
+        "call": call_payload,
+        "message": f"Ringing customer {customer_name} ({clean_phone}). Waiting for customer to accept..."
+    }
+
+@router.post("/{call_id}/customer-accept")
+async def customer_accept_agent_call(
+    call_id: str,
+    db: AsyncSession = Depends(get_db)
+):
+    """
+    FLOW B: Customer accepts incoming outbound call from AI Agent.
+    Transitions Call to IN_PROGRESS, generates language greeting, and notifies Agent Console.
+    """
+    stmt = select(Call).where(Call.id == call_id)
+    res = await db.execute(stmt)
+    call = res.scalars().first()
+    if not call:
+        raise HTTPException(status_code=404, detail="Call session not found")
+
+    call.status = "IN_PROGRESS"
+    language = call.language or "en"
+    greeting = ai_engine.LANGUAGE_GREETINGS.get(language, ai_engine.LANGUAGE_GREETINGS["en"])
+
+    if not call.transcript:
+        call.transcript = [{
+            "speaker": "ai",
+            "text": greeting,
+            "timestamp": datetime.utcnow().isoformat(),
+            "language": language
+        }]
+    await db.commit()
+    await db.refresh(call)
+
+    call_info = {
+        "id": call.id,
+        "call_id": call.id,
+        "status": "IN_PROGRESS",
+        "caller_number": call.caller_number,
+        "receiver_number": call.receiver_number,
+        "language": language,
+        "greeting_text": greeting,
+        "transcript": call.transcript
+    }
+
+    await call_signaling.notify_call_accepted(call_id, call_info)
+    return call_info
+
 class AgentSpeakRequest(BaseModel):
     call_id: str
     text: str
@@ -764,6 +928,34 @@ async def end_live_call(
 
     await call_signaling.notify_call_ended(call_id, end_data)
     return end_data
+
+
+@router.websocket("/ws/customer/{customer_id_or_phone}")
+async def customer_dashboard_websocket(websocket: WebSocket, customer_id_or_phone: str):
+    """
+    Persistent WebSocket for Customer Dashboard.
+    Enables Customer to receive incoming calls from AI Agent Consoles in real time (FLOW B).
+    """
+    await websocket.accept()
+    call_signaling.register_customer(customer_id_or_phone, websocket)
+    logger.info(f"Customer Dashboard connected to dispatch websocket for identifier: {customer_id_or_phone}")
+    try:
+        await websocket.send_json({
+            "event": "CUSTOMER_READY",
+            "identifier": customer_id_or_phone,
+            "timestamp": datetime.utcnow().isoformat()
+        })
+        while True:
+            data = await websocket.receive_text()
+            if data == "ping":
+                await websocket.send_text("pong")
+                continue
+    except WebSocketDisconnect:
+        logger.info(f"Customer Dashboard disconnected: {customer_id_or_phone}")
+    except Exception as e:
+        logger.warning(f"Customer socket notice: {e}")
+    finally:
+        call_signaling.unregister_customer(customer_id_or_phone, websocket)
 
 @router.websocket("/ws/agent-calls")
 @router.websocket("/ws/agent-console")

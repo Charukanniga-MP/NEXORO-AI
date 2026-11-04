@@ -93,6 +93,12 @@ def run_sqlite_migrations(db_path: str = "nexora.db"):
                 except Exception as e:
                     logger.warning(f"Could not add {col_name} to {table}: {e}")
 
+    try:
+        cursor.execute("UPDATE users SET username = 'admin' WHERE email = 'admin@nexora.ai' AND (username IS NULL OR username = '')")
+        cursor.execute("UPDATE users SET username = 'admin_khaira' WHERE email = 'admin@khairacompany.com' AND (username IS NULL OR username = '')")
+    except Exception:
+        pass
+
     conn.commit()
     conn.close()
 

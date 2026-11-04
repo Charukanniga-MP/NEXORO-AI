@@ -498,7 +498,10 @@ export const AgentConsoleView: React.FC = () => {
       return;
     }
 
-    // Connect to call-specific WebSocket and initialize WebRTC Audio receiver
+    await connectCallAudio(callId, false);
+  };
+
+  const connectCallAudio = async (callId: string, isInitiator: boolean = false) => {
     try {
       const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
       const host = window.location.port === '5173' ? '127.0.0.1:8000' : window.location.host;
@@ -525,8 +528,7 @@ export const AgentConsoleView: React.FC = () => {
         }
       };
 
-      // Initialize WebRTC as Receiver (Customer is Initiator)
-      await webrtcService.initializeConnection(callId, false, (signalMsg) => {
+      await webrtcService.initializeConnection(callId, isInitiator, (signalMsg) => {
         if (callWs.readyState === WebSocket.OPEN) {
           callWs.send(JSON.stringify(signalMsg));
         } else if (agentSocketRef.current?.readyState === WebSocket.OPEN) {
@@ -534,7 +536,7 @@ export const AgentConsoleView: React.FC = () => {
         }
       });
     } catch (rtcErr: any) {
-      console.warn('WebRTC audio receiver warning:', rtcErr);
+      console.warn('WebRTC audio connection warning:', rtcErr);
     }
   };
 
@@ -649,24 +651,37 @@ export const AgentConsoleView: React.FC = () => {
     if (!outboundPhone.trim()) return;
     setOutboundStarting(true);
     try {
-      const res = await api.startCall(outboundPhone, outboundLanguage);
-      const callData = res.data;
+      const res = await api.agentCallCustomer({
+        phone: outboundPhone.trim(),
+        customer_name: outboundCustomerName.trim() || undefined,
+        language: outboundLanguage,
+        purpose: outboundPurpose,
+        agent_id: user?.id,
+        agent_name: user?.full_name || 'Agent Operator'
+      });
+      const data = res.data;
+      if (data.status === 'OFFLINE') {
+        alert(`Customer is offline.\n\n${data.message || 'A callback request has been logged in appointments.'}`);
+        setOutboundStarting(false);
+        return;
+      }
+
+      const callData = data.call || { id: data.call_id, caller_number: outboundPhone, direction: 'OUTBOUND', status: 'RINGING' };
       setActiveCall(callData);
       setAgentStatus('ON_CALL');
       setActiveCallLanguage(outboundLanguage);
       setTranscript([
         {
           speaker: 'system',
-          text: `Outbound call connected to ${outboundPhone} (${outboundCustomerName || 'Customer'}) regarding: ${outboundPurpose}`,
+          text: `Ringing customer ${outboundPhone} (${outboundCustomerName || 'Customer'})... Waiting for customer to accept call.`,
           timestamp: new Date().toLocaleTimeString()
-        },
-        {
-          speaker: 'ai',
-          text: callData.greeting_text || `Hello, this is NEXORA AI calling regarding your ${outboundPurpose}. How may I help you?`,
-          timestamp: new Date().toLocaleTimeString(),
-          language: outboundLanguage
         }
       ]);
+
+      const cId = data.call_id || callData.id;
+      if (cId) {
+        connectCallAudio(cId, true);
+      }
       loadConsoleData();
       fetchStats();
     } catch (err: any) {

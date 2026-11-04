@@ -208,62 +208,93 @@ export const CustomerNavbar: React.FC<CustomerNavbarProps> = ({
               </button>
 
               {showUserMenu && (
-                <div className="absolute right-0 mt-2 w-72 bg-white border border-slate-200/90 rounded-2xl shadow-2xl overflow-hidden z-50 text-xs text-slate-700 animate-in fade-in zoom-in-95 duration-150">
-                  {/* Header with Avatar and edit button */}
-                  <div className="p-3.5 bg-gradient-to-r from-blue-600 to-indigo-600 text-white flex items-center justify-between">
-                    <div className="flex items-center space-x-2.5">
-                      <div className="relative group">
-                        <div className="w-10 h-10 rounded-full border-2 border-white/80 bg-white/20 overflow-hidden flex items-center justify-center font-black text-sm">
-                          {customer.avatar_url ? (
-                            <img src={customer.avatar_url} alt={customer.name} className="w-full h-full object-cover" />
-                          ) : (
-                            customer.name.charAt(0)
-                          )}
-                        </div>
-                        <button
+                <>
+                  <div
+                    className="fixed inset-0 z-40"
+                    onClick={() => setShowUserMenu(false)}
+                  />
+                  <div className="absolute right-0 mt-2 w-80 bg-white border border-slate-200/90 rounded-2xl shadow-2xl overflow-hidden z-50 text-xs text-slate-700 animate-in fade-in zoom-in-95 duration-150">
+                    {/* Header with Avatar and edit button */}
+                    <div className="p-3.5 bg-gradient-to-r from-blue-600 to-indigo-600 text-white flex items-center justify-between relative z-10">
+                      <div className="flex items-center space-x-2.5">
+                        <div
+                          className="relative group cursor-pointer"
                           onClick={() => {
                             setActiveFeature('avatar');
                             setShowUserMenu(false);
                           }}
-                          title="Change Profile Picture"
-                          className="absolute -bottom-1 -right-1 p-0.5 bg-amber-400 text-slate-900 rounded-full shadow-md cursor-pointer hover:scale-110 transition-transform"
+                          title="Click to change profile picture"
                         >
-                          <Camera className="w-3 h-3" />
-                        </button>
+                          <div className="w-11 h-11 rounded-full border-2 border-white/80 bg-white/20 overflow-hidden flex items-center justify-center font-black text-sm shadow-sm">
+                            {customer.avatar_url ? (
+                              <img src={customer.avatar_url} alt={customer.name} className="w-full h-full object-cover" />
+                            ) : (
+                              customer.name.charAt(0)
+                            )}
+                          </div>
+                          <div className="absolute -bottom-1 -right-1 p-1 bg-amber-400 text-slate-900 rounded-full shadow-md hover:scale-110 transition-transform">
+                            <Camera className="w-3 h-3" />
+                          </div>
+                        </div>
+                        <div>
+                          <p className="font-extrabold text-xs text-white leading-tight">{customer.name}</p>
+                          <p className="text-[10px] text-blue-100 font-mono">{customer.phone}</p>
+                          <div className="flex items-center space-x-1.5 mt-1">
+                            <span className="inline-block bg-white/20 text-white text-[9px] font-mono px-1.5 py-0.5 rounded-xs">
+                              {customer.customer_code}
+                            </span>
+                            <button
+                              onClick={() => {
+                                setActiveFeature('avatar');
+                                setShowUserMenu(false);
+                              }}
+                              className="text-[9px] bg-amber-400 hover:bg-amber-300 text-slate-900 font-bold px-1.5 py-0.5 rounded cursor-pointer flex items-center space-x-1 shadow-xs"
+                            >
+                              <Camera className="w-2.5 h-2.5" />
+                              <span>Change Photo</span>
+                            </button>
+                          </div>
+                        </div>
                       </div>
-                      <div>
-                        <p className="font-extrabold text-xs text-white leading-tight">{customer.name}</p>
-                        <p className="text-[10px] text-blue-100 font-mono">{customer.phone}</p>
-                        <span className="inline-block bg-white/20 text-white text-[9px] font-mono px-1.5 py-0.2 rounded-xs mt-0.5">
-                          {customer.customer_code}
-                        </span>
-                      </div>
+
+                      <button
+                        onClick={() => setShowUserMenu(false)}
+                        className="p-1 hover:bg-white/10 rounded-lg text-white cursor-pointer"
+                      >
+                        <X className="w-4 h-4" />
+                      </button>
                     </div>
 
-                    <button
-                      onClick={() => setShowUserMenu(false)}
-                      className="p-1 hover:bg-white/10 rounded-lg text-white"
-                    >
-                      <X className="w-4 h-4" />
-                    </button>
-                  </div>
+                    {/* Primary Dashboard & Orders Navigation */}
+                    <div className="p-2 border-b border-slate-100 bg-slate-50/50 space-y-1.5">
+                      <button
+                        onClick={() => {
+                          setPortalMode('customer');
+                          setShowUserMenu(false);
+                        }}
+                        className="w-full text-left px-2.5 py-2 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white rounded-xl text-xs font-bold flex items-center justify-between cursor-pointer transition-all shadow-xs"
+                      >
+                        <div className="flex items-center space-x-2">
+                          <Sparkles className="w-4 h-4 text-amber-300" />
+                          <span>Customer Dashboard</span>
+                        </div>
+                        <span className="text-[9px] bg-white/20 px-2 py-0.5 rounded-full font-mono font-bold">Voice AI</span>
+                      </button>
 
-                  {/* Primary Orders Button */}
-                  <div className="p-2 border-b border-slate-100 bg-slate-50/50">
-                    <button
-                      onClick={() => {
-                        onOpenOrders();
-                        setShowUserMenu(false);
-                      }}
-                      className="w-full text-left px-2.5 py-2 bg-blue-50/80 hover:bg-blue-100 border border-blue-200/80 rounded-xl text-xs text-blue-900 font-bold flex items-center justify-between cursor-pointer transition-colors"
-                    >
-                      <div className="flex items-center space-x-2">
-                        <Package className="w-4 h-4 text-blue-600" />
-                        <span>My Orders & AI Voice Calls</span>
-                      </div>
-                      <ChevronDown className="w-3.5 h-3.5 text-blue-500 -rotate-90" />
-                    </button>
-                  </div>
+                      <button
+                        onClick={() => {
+                          onOpenOrders();
+                          setShowUserMenu(false);
+                        }}
+                        className="w-full text-left px-2.5 py-2 bg-blue-50/80 hover:bg-blue-100 border border-blue-200/80 rounded-xl text-xs text-blue-900 font-bold flex items-center justify-between cursor-pointer transition-colors"
+                      >
+                        <div className="flex items-center space-x-2">
+                          <Package className="w-4 h-4 text-blue-600" />
+                          <span>My Orders & AI Voice Calls</span>
+                        </div>
+                        <ChevronDown className="w-3.5 h-3.5 text-blue-500 -rotate-90" />
+                      </button>
+                    </div>
 
                   {/* Scrollable Grouped Menu */}
                   <div className="max-h-[70vh] overflow-y-auto p-2 space-y-3">
@@ -450,7 +481,8 @@ export const CustomerNavbar: React.FC<CustomerNavbarProps> = ({
                     </div>
                   </div>
                 </div>
-              )}
+              </>
+            )}
             </div>
           ) : (
             <button

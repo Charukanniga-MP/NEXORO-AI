@@ -83,6 +83,7 @@ async def seed_initial_data():
         if not admin_legacy:
             admin_legacy = User(
                 company_id=company.id,
+                username="admin",
                 email="admin@nexora.ai",
                 hashed_password=get_password_hash("admin"),
                 full_name="Alex Mercer (Administrator)",
@@ -95,6 +96,7 @@ async def seed_initial_data():
             )
             session.add(admin_legacy)
         else:
+            admin_legacy.username = "admin"
             admin_legacy.hashed_password = get_password_hash("admin")
             admin_legacy.role = "ADMIN"
             admin_legacy.is_active = True

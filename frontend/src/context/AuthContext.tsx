@@ -20,8 +20,8 @@ interface AuthContextType {
   refreshCustomer: () => Promise<void>;
 
   // Portal State & Navigation
-  portalMode: 'admin' | 'customer' | 'store';
-  setPortalMode: (mode: 'admin' | 'customer' | 'store') => void;
+  portalMode: 'admin' | 'customer' | 'store' | 'agent' | 'landing';
+  setPortalMode: (mode: 'admin' | 'customer' | 'store' | 'agent' | 'landing') => void;
   cartCount: number;
   setCartCount: React.Dispatch<React.SetStateAction<number>>;
   loading: boolean;
@@ -45,7 +45,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [customer, setCustomer] = useState<CustomerProfile | null>(null);
   const [customerToken, setCustomerToken] = useState<string | null>(localStorage.getItem('nexora_customer_token'));
   
-  const [portalMode, setPortalModeState] = useState<'admin' | 'customer' | 'store'>(() => {
+  const [portalMode, setPortalModeState] = useState<'admin' | 'customer' | 'store' | 'agent' | 'landing'>(() => {
     // 1. Check URL parameters and hash first
     const urlParams = new URLSearchParams(window.location.search);
     const param = urlParams.get('portal');
@@ -59,7 +59,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     if (param === 'customer' || hash.includes('customer')) {
       return 'customer';
     }
-    const saved = localStorage.getItem('nexora_portal_mode') as 'admin' | 'customer' | 'store';
+    const saved = localStorage.getItem('nexora_portal_mode') as any;
     if (saved === 'admin' || saved === 'customer' || saved === 'store') {
       return saved;
     }
@@ -70,7 +70,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [loading, setLoading] = useState<boolean>(true);
   const [pendingHandoffsCount, setPendingHandoffsCount] = useState<number>(0);
 
-  const setPortalMode = (mode: 'admin' | 'customer' | 'store') => {
+  const setPortalMode = (mode: 'admin' | 'customer' | 'store' | 'agent' | 'landing') => {
     localStorage.setItem('nexora_portal_mode', mode);
     window.location.hash = mode;
     setPortalModeState(mode);
@@ -81,10 +81,14 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       const hash = window.location.hash.toLowerCase();
       if (hash.includes('admin')) {
         setPortalModeState('admin');
+      } else if (hash.includes('agent')) {
+        setPortalModeState('agent');
       } else if (hash.includes('store')) {
         setPortalModeState('store');
       } else if (hash.includes('customer')) {
         setPortalModeState('customer');
+      } else if (hash.includes('landing')) {
+        setPortalModeState('landing');
       }
     };
     window.addEventListener('hashchange', handleHashChange);
